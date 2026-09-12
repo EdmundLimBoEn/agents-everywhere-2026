@@ -14,7 +14,7 @@ function provider(outputs: unknown[]) {
     apiKey: "test", model: "test",
     fetcher: (async (_url, init) => {
       calls.push(JSON.parse(init!.body as string));
-      const output = outputs[calls.length - 1];
+      const output = outputs[Math.min(calls.length - 1, outputs.length - 1)];
       if (output instanceof Error) throw output;
       return Response.json({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(output) }] }] });
     }) as typeof fetch,
@@ -104,4 +104,65 @@ test("invalid crew text never commits a partial lesson", async () => {
       expect(lesson).toEqual(before);
     }
   }
+});
+
+
+test("crew repairs rejected scout citations and tutor output without restarting valid stages", async () => {
+  const invalidScout = { ...scout, citations: Array.from({ length: 21 }, () => citations[0]) };
+  const invalidTutor = { ...diagnostic, citations: [] };
+  const model = provider([invalidScout, scout, plan, invalidTutor, diagnostic]);
+  const lesson = lessonFixture();
+  const result = await generateCrewReply(lesson, profile, first, model.config);
+  expect(result.catchUp?.scout).toEqual(scout);
+  expect(result.citations).toEqual(citations);
+  expect(model.calls.map(c => c.text.format.name)).toEqual(["class_scout", "class_scout", "planner", "tutor_reply", "tutor_reply"]);
+  expect(lesson.messages).toHaveLength(0);
+  for (const call of [model.calls[0], model.calls[3]]) {
+    expect(call.text.format.schema.properties.citations).toMatchObject({ minItems: 1, maxItems: 20 });
+  }
+});
+
+test("citation repair is bounded and never accepts fabricated evidence", async () => {
+  const model = provider([{ ...scout, citations: [{ ...citations[0], quote: "Invented evidence" }] }]);
+  const lesson = lessonFixture(), before = structuredClone(lesson);
+  await expect(generateCrewReply(lesson, profile, first, model.config)).rejects.toThrow("unverified passage");
+  expect(model.calls).toHaveLength(2);
+  expect(lesson).toEqual(before);
+});
+
+
+test("metadata mistaken for a passage is corrected using the rejected citation details", async () => {
+  const citation = { ...citations[0], quote: 'dueAt: 2026-09-25' };
+  const model = provider([{ ...scout, citations: [citation] }, scout, plan, diagnostic]);
+  const result = await generateCrewReply(lessonFixture(), profile, first, model.config);
+  expect(result.catchUp?.scout.citations).toEqual(citations);
+  const correction = JSON.parse(model.calls[1].input[0].content);
+  expect(correction.validationDetails.citation).toEqual(citation);
+  expect(correction.validationDetails.rule).toContain("metadata");
+  const ids = model.calls[0].text.format.schema.properties.citations.items.properties;
+  expect(ids.sourceId.enum).toContain("source-a");
+  expect(ids.passageId.enum).toContain("passage-a");
+  expect(ids.passageId.enum).not.toContain("unknown");
+});
+
+test("crew does not retry provider transport failures", async () => {
+  const model = provider([new Error("Provider unavailable")]);
+  await expect(generateCrewReply(lessonFixture(), profile, first, model.config)).rejects.toThrow("Provider unavailable");
+  expect(model.calls).toHaveLength(1);
+});
+
+
+test("tutor assessment follows the reviewer and repairs disagreement before saving", async () => {
+  const lesson = lessonFixture();
+  lesson.phase = "diagnostic";
+  lesson.messages = [{ id: "question", role: "agent", text: diagnostic.text, action: "diagnostic", citations, createdAt: lesson.createdAt }];
+  const review = { ...scout, assessment: "incorrect", prerequisite: "Energy versus food" };
+  const model = provider([scout, review, plan, { ...diagnostic, action: "practice", assessment: "correct" }, { ...diagnostic, action: "reteach", assessment: "incorrect" }]);
+  const result = await generateCrewReply(lesson, profile, { ...first, intent: "answer", text: "Food" }, model.config);
+  expect(result.assessment).toBe("incorrect");
+  expect(result.action).toBe("reteach");
+  expect(model.calls[3].text.format.schema.properties.assessment.enum).toEqual(["incorrect"]);
+  expect(model.calls[3].text.format.schema.properties.action.enum).toEqual(["reteach"]);
+  expect(model.calls[4].text.format.name).toBe("tutor_reply");
+  expect(lesson.evidence).toHaveLength(0);
 });

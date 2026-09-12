@@ -28,7 +28,7 @@ Full script and acceptance checks: [docs/hackathon-scope.md](docs/hackathon-scop
 | API | `app/services/api` | Bun and SQLite. Verifies the student's Google access, stores lessons, plans, and evidence |
 | Classroom client | `app/services/classroom` | Classroom, Drive, and Docs APIs. Reads posts, due dates, and extracts passages from attachments |
 | Tutor | `app/services/agent/src/index.ts` | Strict JSON output, verified citations, enforced lesson state machine |
-| Catch-up crew | `app/services/agent/src/crew.ts` | Class Scout, Planner, and Reviewer around the tutor. Crew text is constrained to 1–2,000 nonblank characters at generation and validation. Steps must cite passages and fit the time budget; reviewer and tutor must agree |
+| Catch-up crew | `app/services/agent/src/crew.ts` | Class Scout, Planner, and Reviewer around the tutor. Crew text is constrained to 1–2,000 nonblank characters at generation and validation. Citation IDs are constrained to retrieved passages; deadlines and missing-material notices remain metadata. Rejected stage output gets one correction attempt, with full revalidation before saving. Steps must cite passages and fit the time budget; the reviewer assessment and required lesson action constrain tutor generation |
 | Study UI | `app/apps/web` | Catch Up dashboard, document tabs, lesson thread, whiteboard the tutor annotates on request, optional voice |
 
 Google access includes read scopes for studying and write scopes for the **Docs & assignments** editor. Google account permissions still apply. No grade passback or student submissions. See [setup and scope details](docs/build-and-run.md#google-configuration).
