@@ -328,6 +328,7 @@ test("board geometry, duplicate IDs and invalid turn inputs cannot be persisted"
     { intent: "question", text: "What is this?", requestId: "a", revision: 0, boardSnapshot: "https://example.com/board.png" },
     { intent: "question", text: "What is this?", requestId: "a", revision: 0, boardSnapshot: "data:text/html;base64,PHNjcmlwdD4=" },
     { intent: "question", text: "What is this?", requestId: "a", revision: 0, boardSnapshot: "data:image/png;base64,not base64!" },
+    { intent: "teach", text: "", requestId: "a", revision: 0, whiteboard: "yes" },
   ])
     expect(
       (await s.request(`/lessons/${l.id}/turn`, "POST", input)).status,
@@ -347,20 +348,25 @@ test("a whiteboard picture reaches the tutor but never the stored turn fingerpri
   // Larger than the plain 300 KB turn limit; pictures get their own allowance.
   const boardSnapshot = `data:image/jpeg;base64,${"QUJD".repeat(120000)}`;
   const question = { intent: "question", text: "Is my circuit complete?", requestId: "board-q", revision: 0 };
-  const r = await s.request(`/lessons/${l.id}/turn`, "POST", { ...question, boardSnapshot });
+  const r = await s.request(`/lessons/${l.id}/turn`, "POST", { ...question, boardSnapshot, whiteboard: true });
   expect(r.status).toBe(200);
   expect(seen?.boardSnapshot).toBe(boardSnapshot);
+  expect(seen?.whiteboard).toBe(true);
   expect(((await r.json()) as Lesson).messages.at(-1)?.annotated).toBeUndefined();
   const committed = s.store.turn("student-one", l.id, "board-q")!;
   expect(committed.fingerprint).not.toContain("QUJD");
   expect(committed.fingerprint.length).toBeLessThan(300);
   // Retrying the same question with a fresh picture replays the saved lesson instead of teaching again.
   seen = undefined;
-  const retry = await s.request(`/lessons/${l.id}/turn`, "POST", { ...question, boardSnapshot: "data:image/png;base64,aGVsbG8=" });
+  const retry = await s.request(`/lessons/${l.id}/turn`, "POST", { ...question, whiteboard: true, boardSnapshot: "data:image/png;base64,aGVsbG8=" });
   expect(retry.status).toBe(200);
   expect(seen).toBeUndefined();
   expect(
     (await s.request(`/lessons/${l.id}/turn`, "POST", { ...question, text: "Different question", boardSnapshot })).status,
+  ).toBe(409);
+  // Leaving the whiteboard changes the lesson mode, so it is a different turn as well.
+  expect(
+    (await s.request(`/lessons/${l.id}/turn`, "POST", { ...question, boardSnapshot })).status,
   ).toBe(409);
 });
 

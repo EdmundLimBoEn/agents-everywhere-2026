@@ -365,6 +365,36 @@ describe("whiteboard annotations", () => {
     }));
   });
 
+  test("teaching at the whiteboard hands the tutor its own diagram so it can grow it turn by turn", async () => {
+    const card = { id: "tutor-0", kind: "rectangle" as const, x: 0, y: 0, width: 200, height: 80, text: "Leaf" };
+    const student = { ...card, id: "note", kind: "text" as const, text: "my note" };
+    const started: Lesson = { ...lesson, board: { items: [student, card], strokes: [] } };
+    const atBoard: TurnInput = { ...input, whiteboard: true };
+    const grown = { ...reply, board: [{ ...card, target: null }, { id: "sun", kind: "ellipse", x: 300, y: 0, width: 120, height: 80, text: "Sun", target: null }] };
+    const result = await generateReply(started, profile, atBoard, config(grown, (body) => {
+      const data = JSON.parse(body.input[0].content);
+      expect(data.whiteboardLesson).toBe(true);
+      expect(data.tutorBoard).toEqual([card]);
+      expect(data.whiteboard.elements.map((e: { id: string }) => e.id)).toEqual(["note"]);
+      expect(data.input.whiteboard).toBe(true);
+    }));
+    // Unchanged items keep their id and content, so the board rebuilds them without redrawing.
+    expect(applyReply(started, atBoard, result).board.items).toEqual([
+      student,
+      card,
+      { id: "tutor-1", kind: "ellipse", x: 300, y: 0, width: 120, height: 80, text: "Sun" },
+    ]);
+    await generateReply(lesson, profile, input, config(reply, (body) => {
+      const data = JSON.parse(body.input[0].content);
+      expect(data.whiteboardLesson).toBe(false);
+      expect(data.tutorBoard).toBeUndefined();
+    }));
+    const passages = retrieve(lesson.sources, "");
+    const many = (n: number) => Array.from({ length: n }, (_, i) => ({ ...card, id: `part-${i}`, target: null }));
+    expect(validateReply({ ...reply, board: many(40) }, passages).board).toHaveLength(40);
+    expect(() => validateReply({ ...reply, board: many(41) }, passages)).toThrow("invalid lesson");
+  });
+
   test("annotations may only point at shapes the student drew, and free notes drop the null target", async () => {
     for (const target of ["gone", "old-mark", "nope"])
       await expect(

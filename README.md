@@ -12,7 +12,7 @@ It is a Chrome extension. Teachers change nothing about how they work, and nothi
 2. Tick two posts and click **Study these together**.
 3. The attached Docs and PDFs open as readable tabs beside the lesson.
 4. Enter the time you have and click **Build my plan**. A scout, planner, tutor, and reviewer produce a few steps that fit the budget, each citing the notes. Click **Start** on the first step.
-5. Ask a question that needs both documents. Click a citation to jump to the passage. Or sketch on the **Whiteboard** tab and ask about your sketch; the tutor marks its answer next to your shapes.
+5. Ask a question that needs both documents. Click a citation to jump to the passage. Or sketch on the **Whiteboard** tab and ask about your sketch; the tutor marks its answer next to your shapes. **Teach me at the whiteboard** has the tutor draw the idea step by step as it teaches.
 6. Click **Teach me**. Answer the diagnostic wrong. Watch the tutor reteach and highlight the teacher's own material, and the plan reorder around the gap.
 7. Explain the idea back. Get a recap of what you showed and what to revisit.
 8. Close the overlay. You are on the same Classroom page. Reopen to resume.

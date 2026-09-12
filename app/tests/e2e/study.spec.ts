@@ -67,6 +67,20 @@ async function mockClassroom(page: Page) {
         ...(whiteboard ? { annotated: true } : {}),
         createdAt: lesson.createdAt,
       });
+      if (body.whiteboard && !whiteboard) {
+        // Teaching at the board: the tutor keeps its earlier parts and adds one more each turn.
+        const kept = lesson.board.items.filter((item) => item.id.startsWith("tutor-"));
+        lesson.board = {
+          ...lesson.board,
+          items: diagnostic
+            ? [
+                { id: "tutor-0", kind: "rectangle", x: 0, y: 0, width: 220, height: 90, text: "Leaf" },
+                { id: "tutor-1", kind: "text", x: 0, y: -80, width: 0, height: 0, text: "Sunlight arrives" },
+                { id: "tutor-2", kind: "arrow", x: 60, y: -50, width: 60, height: 50, text: "energy" },
+              ]
+            : [...kept, { id: `tutor-${kept.length}`, kind: "ellipse", x: 300, y: 0, width: 160, height: 90, text: "Glucose" }],
+        };
+      }
       if (whiteboard) {
         // A whiteboard question: annotate the student's rectangle the way the tutor would.
         const shape = lesson.board.scene?.elements.find(
@@ -437,6 +451,42 @@ test("unavailable services retain a usable connection screen without fabricated 
   await expect(page.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "My learning", exact: true })).toBeDisabled();
   await expect(page.locator(".catchup-update")).toHaveCount(0);
+});
+
+test("teaching at the whiteboard draws the tutor's diagram step by step and grows it on the next turn", async ({ page }, testInfo) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  const requests = await mockClassroom(page);
+  await chooseMaterials(page);
+  await page.getByRole("button", { name: "Teach me at the whiteboard →", exact: true }).click();
+  await expect(page.locator(".excalidraw canvas").first()).toBeVisible();
+  await expect(page.getByText("What do plants get from sunlight?", { exact: true })).toBeVisible();
+  const teach = requests.find(r => r.path.endsWith("/turn"))!;
+  expect(teach.body).toMatchObject({ intent: "teach", whiteboard: true });
+  expect(teach.body.boardSnapshot).toBeUndefined();
+  type Saved = { id: string; type: string; text?: string; customData?: { boardItemId?: string } };
+  const marks = () => (requests.filter(r => r.path.endsWith("/board")).at(-1)?.body.scene.elements ?? [])
+    .filter((e: Saved) => e.customData?.boardItemId) as Saved[];
+  // The drawing is revealed one item at a time, then saved once it is complete.
+  await expect.poll(() => marks().length, { timeout: 8000 }).toBe(5);
+  const first = marks();
+  expect(first.map(e => e.type).sort()).toEqual(["arrow", "rectangle", "text", "text", "text"]);
+  expect(first.map(e => e.text).filter(Boolean).sort()).toEqual(["Leaf", "Sunlight arrives", "energy"]);
+  expect(requests.filter(r => r.path.endsWith("/board"))).toHaveLength(1);
+  await page.screenshot({ path: testInfo.outputPath("whiteboard-lesson.png"), fullPage: true });
+  await page.getByRole("textbox", { name: "Your answer or question" }).fill("Food");
+  await page.getByRole("button", { name: "Send ↗", exact: true }).click();
+  await expect(page.getByText("Sunlight gives plants energy to make food. Find the glucose in your teacher’s notes.", { exact: true })).toBeVisible();
+  const answer = requests.filter(r => r.path.endsWith("/turn")).at(-1)!;
+  expect(answer.body).toMatchObject({ intent: "answer", text: "Food", whiteboard: true });
+  expect(answer.body.boardSnapshot).toMatch(/^data:image\/jpeg;base64,/);
+  // The board stays open; earlier parts keep their elements and the new part joins them.
+  await expect(page.locator(".excalidraw canvas").first()).toBeVisible();
+  await expect.poll(() => marks().length, { timeout: 8000 }).toBe(7);
+  const second = marks();
+  for (const element of first) expect(second.some(e => e.id === element.id)).toBe(true);
+  expect(second.filter(e => e.customData?.boardItemId === "tutor-3").map(e => e.type).sort()).toEqual(["ellipse", "text"]);
+  expect(errors).toEqual([]);
 });
 
 test("asking from the whiteboard sends a picture and draws the tutor's marks beside the student's shape", async ({ page }, testInfo) => {

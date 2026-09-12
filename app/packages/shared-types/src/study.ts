@@ -134,6 +134,8 @@ export type TurnInput = {
   text: string;
   /** JPEG or PNG data URL of the student's whiteboard, sent when asking from the whiteboard tab. */
   boardSnapshot?: string;
+  /** The student is at the whiteboard: the tutor teaches by building its diagram there, turn by turn. */
+  whiteboard?: boolean;
   requestId: string;
   revision: number;
 };

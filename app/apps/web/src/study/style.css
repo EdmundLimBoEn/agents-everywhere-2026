@@ -802,5 +802,7 @@ html, body { margin: 0; }
 .study-board-ask button { font-size: 12px; padding: 8px 12px; white-space: nowrap; }
 .study-board-ask .study-meta { flex-basis: 100%; }
 .study-annotated { display: inline-block; margin-top: 6px; color: var(--green); font-size: 12px; }
+.study-board-start { margin-left: 8px; }
+.study-messages > .study-primary + .study-meta { margin-top: 6px; }
 .study-excalidraw { flex: 1; min-height: 0; width: 100%; position: relative; }
 .catchup-assignment-action { margin: 16px 0 0 33px; font-size: 13px !important; }
