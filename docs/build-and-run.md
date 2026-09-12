@@ -1,6 +1,6 @@
 # Build and run Afterclass
 
-Afterclass is a Chrome Manifest V3 extension with a same-tab Classroom overlay, a vanilla TypeScript study UI, and a Bun HTTP server using SQLite. The implemented runtime is local; existing Next.js, Cloudflare, iOS, grading, jobs, and deployment planning elsewhere in this repository are not running implementations.
+Afterclass is a Chrome Manifest V3 extension with a same-tab Classroom overlay, a vanilla TypeScript study UI, and a Bun HTTP server using SQLite. The runtime is local.
 
 ## Local setup
 

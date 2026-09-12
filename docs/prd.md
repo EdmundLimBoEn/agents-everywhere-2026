@@ -1,8 +1,6 @@
 # Adaptive teaching inside Google Classroom
 
-The product is a browser extension that adds an adaptive teacher to the Google Classroom page students already use. Students select their teacher's materials and learn in an overlay in the same tab, with readable source documents beside the lesson.
-
-This revision supersedes the earlier teacher-installed add-on as the primary surface. The historical ChatGPT canvases retain useful teaching ideas; the current product and demo requirements are here and in [hackathon scope](./hackathon-scope.md). Existing add-on, grading, architecture, and machine-split details must be reconciled with this revision before implementation.
+Afterclass is a browser extension that adds an adaptive teacher to the Google Classroom page students already use. Students select their teacher's materials and learn in an overlay in the same tab, with the source documents readable beside the lesson.
 
 ## Entry points
 
@@ -32,23 +30,19 @@ Closing the overlay returns focus and scroll position to the same Classroom loca
 5. Ask the student to explain the idea back or apply it to a new example.
 6. Finish with a recap of demonstrated understanding, remaining uncertainty, and exact notes to revisit.
 
-Students can interrupt with “Explain that more simply,” “Give me an example,” “Why?” or “I know this—skip ahead.” These change the next teaching action while preserving the topic and lesson progress. Skipping is not evidence of mastery. An incorrect answer followed by a correct answer is recorded with the intervention and supporting evidence, not automatically treated as full mastery.
+Students can interrupt with “Explain that more simply,” “Give me an example,” “Why?” or “I know this, skip ahead.” These change the next teaching action while preserving the topic and lesson progress. Skipping is not evidence of mastery. An incorrect answer followed by a correct answer is recorded with the intervention and supporting evidence, not automatically treated as full mastery.
 
 ## Grounding and access
 
 Authorized Google access retrieves real Classroom post metadata and attached Docs or PDFs. The extension supplies page context and selection; the backend checks the signed-in student's access before fetching or retrieving content. Classroom visibility does not guarantee that every attachment is readable.
 
-Keep course, post, file, and passage identifiers with every source. Scope retrieval to the selected materials by default; show proposed additional class materials before adding them. Reuse linked school papers in `notes/` as supplementary material, with provenance visible. Do not require students to upload PDFs.
+Keep course, post, file, and passage identifiers with every source. Scope retrieval to the selected materials by default; show proposed additional class materials before adding them. The team posts school notes from `notes/` as Classroom materials; the tutor reads only what is attached to the class. Do not require students to upload PDFs.
 
 Show loading, empty selection, unavailable attachment, unsupported format, expired authorization, and retrieval failure states. If some files fail, identify them and let the student continue with the readable subset. Never invent a citation or silently substitute demo content. Source documents are reference data, not instructions to the agent. Keep tokens and student content isolated by account.
 
-Implementation must verify current browser-extension permissions, Google OAuth requirements, attachment export/rendering, and Classroom page integration against official documentation. A Classroom add-on and a browser extension are separate integration approaches; add-on context APIs are not the extension entry mechanism.
+## Scope
 
-## What remains from the original plan
-
-Keep the explicit lesson state machine, learner profile, evidence-based mastery, school-note retrieval, real practice questions, voice, and shared whiteboard. Use one polished topic first. The learner profile remains inspectable and editable. External enrichment and generated practice are labeled.
-
-The extension overlay is the primary student surface. Standalone web and iOS experiences are companions. Teacher attachment discovery, grading, turn-in, and Marketplace add-on distribution are outside the primary demo; completing a lesson saves learning progress without modifying Classroom submissions or grades.
+Keep the explicit lesson state machine, learner profile, evidence-based mastery, voice, and shared whiteboard. Use one polished topic first. The learner profile is inspectable and editable. Generated practice is labeled. The extension overlay is the only student surface. Grading, turn-in, teacher dashboards, and Marketplace distribution are out. Completing a lesson saves learning progress without modifying Classroom submissions or grades.
 
 ## Demo promise
 

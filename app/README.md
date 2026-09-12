@@ -14,4 +14,4 @@ bun run start
 
 Load `dist/extension` as an unpacked Chrome extension. Run `bun run check` for typechecks, service tests, and builds; `bun run test:e2e` runs browser checks after installing Playwright Chromium.
 
-Implemented entrypoints are `apps/extension/src`, `apps/web/src`, `services/api/src`, `services/classroom/src`, `services/agent/src`, and `services/realtime/src`. Shared lesson types live in `packages/shared-types/src/study.ts`; the HTTP contract is [OpenAPI](packages/openapi/openapi.json). Other scaffold directories and earlier architecture documents describe future work, not deployed services.
+Implemented entrypoints are `apps/extension/src`, `apps/web/src`, `services/api/src`, `services/classroom/src`, `services/agent/src`, and `services/realtime/src`. Shared lesson types live in `packages/shared-types/src/study.ts`; the HTTP contract is [OpenAPI](packages/openapi/openapi.json).

@@ -6,12 +6,6 @@
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "paths": {
-      "@agent/schemas": ["./packages/schemas/src/index.ts"],
-      "@agent/events": ["./packages/events/src/index.ts"],
-      "@agent/agent-tools": ["./packages/agent-tools/src/index.ts"],
-      "@agent/classroom-api": ["./packages/classroom-api/src/index.ts"]
-    },
     "types": ["bun", "chrome"],
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },

@@ -14,50 +14,15 @@
         "typescript": "^5.9.2",
       },
     },
-    "packages/agent-runtime": {
-      "name": "@agent/agent-runtime",
-    },
-    "packages/agent-tools": {
-      "name": "@agent/agent-tools",
-    },
-    "packages/classroom-api": {
-      "name": "@agent/classroom-api",
-    },
-    "packages/evals": {
-      "name": "@agent/evals",
-    },
-    "packages/events": {
-      "name": "@agent/events",
-    },
     "packages/openapi": {
       "name": "@agent/openapi",
-    },
-    "packages/rag-core": {
-      "name": "@agent/rag-core",
-    },
-    "packages/schemas": {
-      "name": "@agent/schemas",
     },
     "packages/shared-types": {
       "name": "@agent/shared-types",
     },
   },
   "packages": {
-    "@agent/agent-runtime": ["@agent/agent-runtime@workspace:packages/agent-runtime"],
-
-    "@agent/agent-tools": ["@agent/agent-tools@workspace:packages/agent-tools"],
-
-    "@agent/classroom-api": ["@agent/classroom-api@workspace:packages/classroom-api"],
-
-    "@agent/evals": ["@agent/evals@workspace:packages/evals"],
-
-    "@agent/events": ["@agent/events@workspace:packages/events"],
-
     "@agent/openapi": ["@agent/openapi@workspace:packages/openapi"],
-
-    "@agent/rag-core": ["@agent/rag-core@workspace:packages/rag-core"],
-
-    "@agent/schemas": ["@agent/schemas@workspace:packages/schemas"],
 
     "@agent/shared-types": ["@agent/shared-types@workspace:packages/shared-types"],
 

@@ -1,89 +1,53 @@
 # Lesson state machine
 
-Critical transitions are deterministic. Teaching-path choices can be model-selected. A real lesson starts from the extension overlay with selected Classroom posts and authorized source documents. See the current [PRD](./prd.md).
+The lesson is an explicit state machine enforced on the server in `app/services/agent/src/index.ts`. The model proposes text, an action, an assessment, a misconception, citations, and board items as strict JSON. The server rejects any reply whose action does not match the required transition, whose citation is not an exact substring of a retrieved passage, or that assesses an answer when no check question is pending.
 
 ## Entry
 
 ```text
-classroom.study.opened
-→ validate signed-in access to course and selected posts
-→ load readable attachments and stable source locations
-→ bind courseId, selectedPosts[], sources[], learnerId, lessonId
-→ IDLE
+Study notes opened with selected posts
+→ verify the signed-in account can read the course and each selected post
+→ load attachments; extract passages with stable ids (Docs paragraphs, PDF pages)
+→ create lesson: courseId, selected posts, sources, learner, phase ready
 ```
 
-`GOAL_SELECTION` uses the selected materials and optional assignment context. “Teach me this topic” starts a diagnostic; cross-document Q&A uses the same sources. Partial attachment failures are visible before teaching begins.
-
-## States
+## Phases
 
 ```text
-IDLE
-→ GOAL_SELECTION
-→ ASSESS_PRIOR_KNOWLEDGE
-→ TEACH
-→ CHECK_UNDERSTANDING
-→ DIAGNOSE
-→ RETEACH or PRACTICE
-→ ASSESS
-→ UPDATE_MASTERY
-→ SUMMARY
-→ COMPLETE
-→ save recap with source links and learner evidence
+ready → diagnostic → teaching / reteaching → practice → teach_back → complete
 ```
 
-## Teaching actions
-
-The teaching agent may choose `explain`, `ask_question`, `retrieve_notes`, `retrieve_classroom_materials`, `draw`, `highlight`, `move_whiteboard_element`, `give_hint`, `show_example`, `simplify`, `switch_modality`, `test_prerequisite`, `retrieve_practice_question`, `generate_practice_question`, `mark_answer`, `update_mastery`, `open_source`, or `end_lesson`.
-
-When the student struggles, diagnose first, then pick an intervention: simpler explanation, analogy, diagram, worked example, prerequisite review, practice question, Socratic question, voice explanation, or whiteboard manipulation.
-
-## Tools
-
-The table below retains the broader integration roadmap. Add-on context, attachment creation, submission, and grade tools are not part of the extension demo. `open_source` selects a loaded document and its passage or diagram in the overlay.
-
-Machine 2 implements teaching behavior. Machine 1 exposes `POST /agent/tools/:toolName` and owns Classroom OAuth.
-
-| Tool | Purpose |
+| Agent action | Phase after |
 | --- | --- |
-| `listCourses` | Classroom courses for this user |
-| `getCourseWork` | Current assignment or question |
-| `listCourseMaterials` | Materials and Drive files on the item or course |
-| `listAnnouncements` | Recent class announcements |
-| `getSubmission` | Classroom submission state |
-| `turnInSubmission` | Turn the coursework in |
-| `passBackDraftGrade` | Add-on `pointsEarned` with teacher tokens |
-| `createAddOnAttachment` | Teacher discovery |
-| `getAddOnContext` | Role and `submissionId` |
-| `searchNotes` | Hybrid retrieval over linked `notes/` PDFs |
-| `searchPracticePapers` | Find real paper questions |
-| `getTopicGraph` | Prerequisite and related topics |
-| `getLearnerProfile` | Preferences and current mastery |
-| `updateMastery` | Write mastery evidence |
-| `recordMisconception` | Store a diagnosed misconception |
-| `getPracticeQuestion` | Match weakness and difficulty |
-| `generatePracticeQuestion` | School-style generated item |
-| `markAnswer` | Scheme plus conceptual mark |
-| `getWhiteboard` / `modifyWhiteboard` | Read or request board actions |
-| `saveLesson` / `saveLessonSummary` | Persist lesson close-out |
-| `getPreviousLesson` | Reopen history on this coursework |
-| `recommendNextTopic` | Next Classroom item or revision target |
+| `diagnostic` | diagnostic |
+| `explain` | teaching |
+| `reteach` | reteaching |
+| `practice` | practice |
+| `teach_back` | teach_back |
+| `recap` | complete |
+| `answer` | unchanged |
 
-## Core loop
+## Student intents and the required next action
 
-```text
-Observe student and Classroom item
-→ Read learner profile + mastery + due date
-→ Determine lesson state
-→ Retrieve linked notes and Classroom materials
-→ Choose teaching action
-→ Teach via voice, text, or whiteboard
-→ Check understanding
-→ Diagnose mistakes
-→ Update learner model
-→ Save recap and source links when COMPLETE
-→ Choose next action
-```
+| Intent | Required agent action |
+| --- | --- |
+| `teach` from ready | `diagnostic` |
+| `answer` assessed incorrect or partial | `reteach` |
+| `answer` assessed correct after diagnostic, explain, or reteach | `practice` |
+| `answer` assessed correct after practice | `teach_back` |
+| `answer` assessed correct after teach_back | `recap` |
+| `simplify` | `reteach` |
+| `example`, `skip` | `explain` |
+| `question`, `why` | `answer` |
+| `recap` | `recap` |
+
+## Evidence rules
+
+- An answer is assessed only when the previous agent action asked a check question and the lesson is not complete.
+- Skips, questions, and interruptions are never graded and never count toward mastery.
+- Each assessed answer stores the answer, the assessment, the diagnosed misconception, and the intervention text as evidence on the lesson and the learner profile.
+- A recap is allowed only after a correct teach-back or an explicit recap request. It summarizes demonstrated understanding and remaining uncertainty and cites the notes to revisit.
 
 ## Observable adaptation
 
-An incorrect diagnostic answer routes through `DIAGNOSE` and a targeted intervention before another check. A correct answer can advance to application practice. Simplify, example, why, and skip requests affect the next action without discarding lesson context. Skipping is not mastery evidence. Each source-backed teaching action identifies the source location to open or highlight. The final teach-back supplies evidence for the recap; uncertainty remains visible.
+Run the same diagnostic twice, once with a wrong answer and once with a right one. The wrong answer must produce `reteach` with a named misconception and a citation. The right one must produce `practice`. Rewording the same script does not pass.

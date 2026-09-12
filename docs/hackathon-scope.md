@@ -1,6 +1,6 @@
 # Hackathon scope
 
-The demo must prove both real Classroom integration and adaptive teaching. [The revised PRD](./prd.md) is authoritative over earlier add-on and standalone-app plans.
+The demo must prove both real Classroom integration and adaptive teaching. [The PRD](./prd.md) is authoritative.
 
 ## Must work
 
@@ -9,24 +9,26 @@ The demo must prove both real Classroom integration and adaptive teaching. [The 
 - Authorized retrieval of attached Google Docs and PDFs, with visible per-file access failures.
 - Same-tab overlay with readable document tabs and citations that navigate to exact supporting passages.
 - Cross-document questions and an agent-led mini lesson with diagnostic, teaching, answer check, adaptation, teach-back, and recap.
-- Student interruptions, learner evidence saved, voice, and a shared whiteboard supporting the lesson.
+- Student interruptions, learner evidence saved, and a shared whiteboard supporting the lesson. Voice is optional.
 - Closing and reopening without losing the Classroom position or lesson progress.
 
 ## Primary demo
 
-Use one topic with two real posts and two accessible attached documents. Photosynthesis is the proposed example; use actual teacher materials rather than fabricated files.
+One topic, two real posts, two accessible attached PDFs. Use the two electricity notes from `notes/`, posted as materials under one topic in the demo class. Use actual teacher materials rather than fabricated files.
 
 1. Open the real class's Stream, then Classwork; both remain usable.
-2. Select two posts and click “Study these together.”
+2. Select the two electricity posts and click “Study these together.”
 3. Fetch their attachments and show both readable document tabs.
-4. Ask a question requiring both sources; open the supporting passages.
-5. Click “Teach me this topic.” The agent asks what plants get from sunlight.
-6. Student answers “Food.” The agent diagnoses the energy-versus-food misconception.
-7. Agent explains that light supplies energy to make food and opens the relevant teacher diagram or passage. Use an actual available source, not an assumed diagram.
-8. Agent asks the student to identify the food produced, then predict what happens without light.
+4. Ask a question that needs both sources, for example how the current in a circuit relates to the rating of the fuse protecting it. Open the supporting passages.
+5. Click “Teach me this topic.” The agent asks a diagnostic: in a series circuit with two lamps, is the current after the second lamp smaller than before the first?
+6. Student answers “Yes, the lamps use up the current.” The agent diagnoses the current-is-consumed misconception.
+7. Agent explains that current is the same at every point in a series circuit and that energy, not charge, is transferred to the lamps. It opens the passage or diagram in the notes that shows this. Use an actual available passage, not an assumed diagram.
+8. Agent asks the student to predict two ammeter readings, then what happens to the current when a second lamp is added in series.
 9. Student asks for a simpler explanation; the next teaching action responds to that request.
 10. Student explains the concept back. The recap distinguishes demonstrated understanding from topics still needing practice and links the notes to revisit.
 11. Close the overlay and continue on the same Classroom page. Reopen to resume.
+
+Before the demo, confirm the electricity notes contain the passages steps 4 and 7 rely on. If they don't, pick a misconception the notes do cover.
 
 ## Acceptance checks before demo
 
@@ -43,10 +45,4 @@ These are implementation acceptance checks, not claims that the current reposito
 
 ## Outside this demo
 
-Teacher-installed add-on discovery, grade passback, submission turn-in, custom teacher dashboards, full iOS parity, offline teaching, collaboration, notifications, advanced graph visualization, and broad subject coverage. Retain the broader roadmap without making these prerequisites for the extension demo.
-
-## Work split
-
-Machine 1 owns the extension, Classroom page integration, Google authorization, attachment loading, document viewer, overlay, voice transport, and platform. Machine 2 owns grounded retrieval, source anchors, teaching decisions, lesson state, learner evidence, and practice. Agree on the selected-source session contract first: course ID, selected post IDs and types, attachment IDs, source locations, learner ID, and lesson ID. Backend authorization validates these identifiers.
-
-The older [two-machine split](./two-machine-split.md) is a reference for service ownership; its add-on-specific entry and grading requirements are superseded.
+Teacher-installed add-on, grade passback, submission turn-in, teacher dashboards, iOS, offline teaching, collaboration, notifications, and broad subject coverage.
