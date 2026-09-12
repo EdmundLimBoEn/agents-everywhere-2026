@@ -18,8 +18,8 @@ Edit `.env` before building. Never commit API keys or tokens.
 | --- | --- |
 | `GOOGLE_CLIENT_ID` | Google Chrome extension OAuth client ID. The server accepts a comma-separated allowlist; the extension uses its first entry. |
 | `OPENAI_API_KEY` | Server-only OpenAI key for teaching and optional voice. |
-| `OPENAI_MODEL` | Explicit model ID with structured-output support and access on your account; no default. |
-| `OPENAI_REALTIME_MODEL` | Explicit Realtime model ID for optional voice; no default. |
+| `OPENAI_MODEL` | Explicit model ID with structured-output support and access on your account. Authorized pilot choice: `gpt-5.4-mini`. |
+| `OPENAI_REALTIME_MODEL` | Explicit Realtime model ID for optional voice. Authorized pilot choice: `gpt-realtime-2.1-mini`. |
 | `API_ORIGIN` | Extension backend origin; defaults to `http://localhost:8787`. Rebuild after changing. HTTPS required except loopback HTTP. |
 | `PORT` / `HOST` | Server defaults: `8787` / `127.0.0.1`. Keep `API_ORIGIN` consistent. |
 | `EXTENSION_ID` | Extension origin allowed by the API. Bundled public key yields `pdilhkaadeldjlpcnpebmhfchkoankec`; set explicitly if using another key. |
@@ -58,6 +58,16 @@ There is no grade passback or Classroom write access. Google authorization remai
 
 ## Use the complete flow
 
+The extension now opens **Catch Up**, a visual dashboard based on the selected class. Choose **Updates since** and **Time you have**, then **Build my plan**. With no checkboxes selected, the crew uses all visible updates; otherwise it uses only selected updates that still match the filters. Select at most 30 posts. Posts with unavailable publication dates remain visible and are labeled; deadlines are displayed only when Classroom supplies them. The date filter is an update filter, not an attendance or submission tracker.
+
+The plan shows estimated time for each step, unused time, source links, and the planner's reason for the order. **Start** opens the relevant source beside the existing tutor. **Explain the concept** and **Give me a hint** submit questions through the same grounded teaching engine. **Your catch-up plan** returns to the dashboard, and **Saved lessons** resumes persisted work. Plans cover one selected class at a time; choose another class from the sidebar to switch.
+
+Step checkmarks are self-reported and stored on the current browser/device; they do not record mastery or submit Classroom assignments. Checkmarks survive reopening the same plan, but changed steps start unchecked. If browser storage is unavailable, the checklist works only for the current visit. The server still owns lessons and assessment evidence. A failed plan-generation request retries the same lesson and request ID instead of creating duplicate lessons.
+
+Deleting a lesson clears its local checklist and displayed plan. The **Delete all my learning data** confirmation also explicitly clears all Catch Up checkmarks on this device, including those left by earlier account sessions.
+
+For a visible local preview, open `http://localhost:8787` while the server runs. It shows the connection screen until Google is authorized through the extension. The responsive dashboard is included in `app/dist/extension`; reload the unpacked extension after rebuilding. The standalone page does not bypass Google authentication, and no public deployment is created by the local build.
+
 On Stream or Classwork, select posts using the injected controls, study a topic, or find notes related to an assignment. The material picker also lists posts from the actual Classroom API. Select two posts with readable attachments, open the lesson, and choose **Teach me**. Documents stay visible beside the teaching conversation. Click a citation to open and highlight its passage. Answer incorrectly to exercise reteaching, then use an interruption such as simplify, example, why, or skip. Continue through practice, teach-back, and recap.
 
 The board supports diagram items and drawing. Learner settings and assessment evidence persist with the lesson. Close the overlay with its close button or Escape to return to Classroom, then reopen and resume the saved lesson. For voice, start a lesson first, enable voice, and allow microphone access. Voice requires a configured Realtime model and a working WebRTC connection; spoken student turns use the same teaching engine as typed turns.
@@ -93,3 +103,24 @@ The extension negotiates an NDJSON response for long requests. Heartbeats keep t
 - `bun run test:e2e`: 6 Chromium tests passing, including loading the actual unpacked MV3 extension, source navigation, close/resume behavior, and failed/pending whiteboard saves.
 - Visual inspection: source reader, highlighted passage, composer, and voice controls remain visible at the tested desktop viewport.
 - Live school OAuth, Classroom DOM matching against a signed-in class, provider-generated teaching, and microphone/WebRTC audio remain unverified without the required accounts and credentials. Test lesson content exists only in explicitly labeled test fixtures.
+
+## Four-agent catch-up crew
+
+Select the Classroom posts you want to catch up on, open the lesson, enter a 5–120 minute study window, and choose **Help me catch up**. The Class Scout reads selected material, the Planner proposes cited steps within your time budget, and the Tutor starts a diagnostic. After an answer, a separate Reviewer assesses it and identifies supported prerequisite gaps. The Planner receives that review before replanning; the Tutor receives the updated plan and must agree with the review before the turn can be saved. Expand **Your catch-up crew** to inspect each contribution and open its source citations.
+
+Each role is a separate structured OpenAI request, using the existing configured model. Initial turns use three requests; assessable answers use four. Questions and interruptions do not invoke the Reviewer or earn assessment evidence. The crew has a three-minute provider deadline; failures preserve the previous lesson and the existing retry flow. The original **Teach me this topic** path still uses one tutor request.
+
+Plans describe the next study window, with estimated durations; they are not timers or completion records. Only the selected posts are in scope. The crew does not infer attendance, submission status, or everything a student missed. Available assignment deadlines are passed through using [Google's UTC date/time contract](https://developers.google.com/workspace/classroom/reference/rest/v1/courses.courseWork). Missing deadlines and inaccessible materials stay unknown. No new Google scopes or write permissions are needed.
+
+Crew results persist atomically with the lesson in SQLite and survive resuming. Forgetting an assessment also clears that lesson's derived crew notes. The HTTP contract adds optional `catchUpMinutes` on a turn and optional `catchUp` and `classroomPosts` on a lesson. Existing lessons remain compatible. Subsequent typed and voice-submitted turns inherit catch-up mode from the saved lesson.
+
+The standard checks include deterministic handoff, budget, citation, disagreement, persistence, and browser tests. To explicitly run the live provider test with synthetic test material (uses the configured API account):
+
+```sh
+cd app
+RUN_LIVE_CREW=1 bun test services/agent/src/crew.live.test.ts
+```
+
+This provider test does not access a student's Google account and does not verify school OAuth or microphone hardware.
+
+Catch-up verification on 12 September 2026: 52 deterministic service/boundary tests and 10 Chromium browser tests passed. The opt-in live model test also passed, exercising initial planning and replanning after an incorrect answer. TypeScript and extension/web builds passed. Browser coverage includes dashboard planning, date filters, idempotent retries, local checkmarks and deletion, mobile layout, unavailable-service recovery, source navigation, the chosen time budget, and visible voice controls with the crew expanded. School-account OAuth remains an independent live integration check.

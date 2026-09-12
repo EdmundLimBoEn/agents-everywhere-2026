@@ -332,3 +332,15 @@ test("expired authorization is fatal instead of hidden as attachment failure", a
     ]),
   ).rejects.toThrow("authorization expired");
 });
+
+
+test("Classroom deadlines retain UTC time and absent deadlines stay unknown", async () => {
+  const s = stub((url) => url.pathname.endsWith("/courseWork") ? { courseWork: [
+    { id: "due", courseId: "class1", title: "Exercise", dueDate: { year: 2026, month: 9, day: 14 }, dueTime: { hours: 23, minutes: 59 }, creationTime: "2026-09-12T04:00:00Z" },
+    { id: "unknown", courseId: "class1", title: "Practice" },
+  ] } : {});
+  const { posts } = await new GoogleClassroom("secret", s.fetcher).posts("class1");
+  expect(posts[0]?.dueAt).toBe("2026-09-14T23:59:00.000Z");
+  expect(posts[0]?.publishedAt).toBe("2026-09-12T04:00:00Z");
+  expect(posts[1]?.dueAt).toBeUndefined();
+});

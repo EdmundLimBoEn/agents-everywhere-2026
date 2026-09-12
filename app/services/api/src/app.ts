@@ -1,3 +1,4 @@
+import { generateCrewReply } from "../../agent/src/crew";
 import type {
   Lesson,
   TurnInput,
@@ -62,7 +63,7 @@ export function createApp({
   store,
   config,
   google = (token) => new GoogleClassroom(token),
-  tutor = generateReply,
+  tutor = generateCrewReply,
   voice = createVoiceSession,
 }: Dependencies) {
   const busy = new Set<string>();
@@ -244,6 +245,7 @@ export function createApp({
               .join(" + ")
               .slice(0, 200),
             posts: refs,
+            classroomPosts: loaded.posts,
             sources: loaded.sources,
             failures: loaded.failures,
             phase: "ready",
@@ -271,6 +273,7 @@ export function createApp({
         const loaded = await client.loadSources(lesson.courseId, lesson.posts);
         lesson = {
           ...lesson!,
+          classroomPosts: loaded.posts,
           sources: loaded.sources,
           failures: loaded.failures,
         };

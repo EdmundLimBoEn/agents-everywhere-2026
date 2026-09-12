@@ -1,3 +1,4 @@
+import { classroomCourseRef } from "../../../packages/classroom-api/src/route";
 import type {
   ClassroomPost as Post,
   ClassroomCourse as Course,
@@ -21,9 +22,18 @@ document.documentElement.append(host);
 const launch = shadow.querySelector<HTMLButtonElement>("#launch")!;
 const dialog = shadow.querySelector<HTMLDialogElement>("dialog")!;
 const frame = shadow.querySelector<HTMLIFrameElement>("iframe")!;
+let reloadRequired = false;
 let previousFocus: HTMLElement | null = null;
 let previousScroll = [0, 0];
 function openStudy(items = [...selected.values()], intent?: string) {
+  if (reloadRequired) { location.reload(); return; }
+  if (!chrome.runtime?.id) {
+    reloadRequired = true;
+    launch.textContent = "Reload Classroom to reconnect";
+    return;
+  }
+  frame.removeAttribute("srcdoc");
+
   previousFocus =
     document.activeElement instanceof HTMLElement
       ? document.activeElement
@@ -76,28 +86,9 @@ function updateLabel() {
     ? `Study these together (${selected.size})`
     : "Study notes";
 }
-function routeCourseId(): string | undefined {
-  const ref = location.pathname.match(/\/c\/([^/]+)/)?.[1];
-  if (!ref) return;
-  try {
-    return atob(ref.replace(/-/g, "+").replace(/_/g, "/"));
-  } catch {
-    return ref;
-  }
-}
 function matchesCourse(course: Course) {
-  if (routeCourseId() === course.id) return true;
-  if (!course.alternateLink) return false;
-  try {
-    return (
-      new URL(course.alternateLink).pathname
-        .split("/")
-        .slice(0, 3)
-        .join("/") === location.pathname.split("/").slice(0, 3).join("/")
-    );
-  } catch {
-    return false;
-  }
+  const ref = classroomCourseRef(location.href);
+  return !!ref && (ref === course.id || ref === classroomCourseRef(course.alternateLink));
 }
 async function loadPosts() {
   const revision = ++generation;
@@ -210,7 +201,7 @@ function attachControls() {
 function refresh() {
   if (currentUrl !== location.href) {
     currentUrl = location.href;
-    const nextCourseRoute = location.pathname.match(/\/c\/([^/]+)/)?.[1] || "";
+    const nextCourseRoute = classroomCourseRef(location.href) || "";
     if (currentCourseRoute !== nextCourseRoute) {
       currentCourseRoute = nextCourseRoute;
       courseId = "";

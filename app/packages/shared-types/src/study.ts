@@ -5,6 +5,8 @@ export type ClassroomPost = PostRef & {
   title: string;
   description: string;
   topicId?: string;
+  dueAt?: string;
+  publishedAt?: string;
   alternateLink?: string;
   attachments: { id: string; title: string; mimeType?: string }[];
 };
@@ -93,6 +95,8 @@ export type Lesson = {
   sources: StudySource[];
   failures: SourceFailure[];
   phase: LessonPhase;
+  classroomPosts?: ClassroomPost[];
+  catchUp?: CatchUpState;
   messages: LessonMessage[];
   board: Board;
   evidence: Evidence[];
@@ -111,11 +115,13 @@ export type TurnIntent =
   | "recap";
 export type TurnInput = {
   intent: TurnIntent;
+  catchUpMinutes?: number;
   text: string;
   requestId: string;
   revision: number;
 };
 export type TutorReply = {
+  catchUp?: CatchUpState;
   text: string;
   action: TeachingAction;
   citations: Citation[];
@@ -129,3 +135,11 @@ export type ApiClient = <T>(
   path: string,
   init?: { method?: string; body?: unknown },
 ) => Promise<T>;
+
+export type CrewNote = { text: string; citations: Citation[] };
+export type CatchUpState = {
+  minutes: number;
+  scout: CrewNote;
+  review: (CrewNote & { assessment: TutorReply["assessment"]; prerequisite: string | null }) | null;
+  plan: { reason: string; steps: (CrewNote & { minutes: number })[] };
+};
