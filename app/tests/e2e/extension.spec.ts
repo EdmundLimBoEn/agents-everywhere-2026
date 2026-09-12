@@ -51,7 +51,7 @@ test("Classroom content controls survive DOM updates and restore page focus", as
   ).toBeVisible();
   await page.evaluate(() => {
     document.querySelector("#more")!.innerHTML =
-      '<article data-stream-item-id="post-b">Making glucose</article>';
+      '<div style="padding:16px;width:600px"><span>Chai posted a new material</span><br><a href="/u/0/c/Y291cnNlLTE=/m/cG9zdC1i/details?hl=en">Making glucose</a></div>';
   });
   await page
     .getByRole("checkbox", { name: "Select Making glucose for study" })
