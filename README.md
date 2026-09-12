@@ -2,7 +2,9 @@
 
 Hackathon monorepo for an adaptive teaching agent that lives in Google Classroom.
 
-Students open an assignment they already have. The agent teaches there with voice, a shared whiteboard, and RAG over school notes linked to that coursework. See [Why this belongs in Classroom](docs/theme-fit.md) and the [PRD](docs/prd.md).
+Students select real Classroom posts through a browser extension. A same-tab overlay shows their documents beside an adaptive lesson, with passage citations, voice, and a shared whiteboard. See [Why this belongs in Classroom](docs/theme-fit.md) and the [PRD](docs/prd.md).
+
+Run it with the [build and setup guide](docs/build-and-run.md). Google OAuth and OpenAI model credentials are required for live teaching. Browser tests use mocked integrations; no fake class content is shipped.
 
 ## Layout
 
@@ -10,7 +12,7 @@ Students open an assignment they already have. The agent teaches there with voic
 | --- | --- |
 | `notes/` | Raw PDF dump. Every file links to a Classroom item. |
 | `docs/` | PRD, Classroom spec, architecture, and the ChatGPT source plans. |
-| `app/` | Web add-on, iOS companion, services, and shared contracts. |
+| `app/` | Implemented Chrome extension, study UI, Bun API, SQLite storage, and shared contracts. |
 
 ## Do not
 

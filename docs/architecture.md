@@ -1,5 +1,7 @@
 # About the architecture
 
+> Planning revision: [the current PRD](./prd.md) and [hackathon scope](./hackathon-scope.md) take precedence. The primary surface is now a browser extension with a multi-post study overlay. Earlier add-on, single-item session, turn-in, and grading requirements below are historical and must be reconciled before implementation.
+
 The ChatGPT chat locked a TypeScript-first monorepo with two clients, services, and shared contracts. A later product lock puts Google Classroom at the center. Intelligence, Classroom, and product UI meet only through OpenAPI, events, and agent tool schemas.
 
 ## Where traffic starts

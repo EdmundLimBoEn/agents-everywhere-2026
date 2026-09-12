@@ -1,5 +1,7 @@
 # Two-machine split
 
+> Planning revision: [the current PRD](./prd.md) and [hackathon scope](./hackathon-scope.md) take precedence. The primary surface is now a browser extension with a multi-post study overlay. Earlier add-on, single-item session, turn-in, and grading requirements below are historical and must be reconciled before implementation.
+
 Two machines share one monorepo. Do not casually edit folders the other machine owns. Integrate through OpenAPI, `app/packages/schemas`, `app/packages/events`, and `app/packages/agent-tools`.
 
 ## Machine 1

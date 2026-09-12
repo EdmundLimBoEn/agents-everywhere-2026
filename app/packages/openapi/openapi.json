@@ -1,0 +1,1562 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Afterclass Study API",
+    "version": "1.0.0",
+    "description": "Local Bun API. Except status, routes require a Google OAuth access token whose audience matches GOOGLE_CLIENT_ID. Data is scoped to the verified Google user. Errors use {error,code}. JSON request limit is 300,000 bytes. Authenticated traffic is limited to 120 requests per minute per user per process. Common statuses: 400 validation, 401 Google authorization, 403 origin/account/access, 404 missing resource, 409 concurrent/stale update, 413 body limit, 415 content type, 422 no sources/lesson limit, 429 rate limit, 502 provider failure, 503 missing configuration. CORS is an exact origin allowlist. Google material access is read-only."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8787",
+      "description": "Default local server"
+    }
+  ],
+  "security": [
+    {
+      "googleBearer": []
+    }
+  ],
+  "paths": {
+    "/api/status": {
+      "get": {
+        "summary": "Read configuration availability",
+        "operationId": "getApiStatus",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configured": {
+                      "type": "object",
+                      "properties": {
+                        "google": {
+                          "type": "boolean"
+                        },
+                        "teaching": {
+                          "type": "boolean"
+                        },
+                        "voice": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "google",
+                        "teaching",
+                        "voice"
+                      ]
+                    },
+                    "storage": {
+                      "const": "local"
+                    },
+                    "version": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "configured",
+                    "storage",
+                    "version"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/courses": {
+      "get": {
+        "summary": "List accessible courses",
+        "operationId": "getApiCourses",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "courses": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Course"
+                      }
+                    }
+                  },
+                  "required": [
+                    "courses"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/courses/{courseId}/posts": {
+      "get": {
+        "summary": "Read course posts and topics",
+        "operationId": "getApiCoursesCourseidPosts",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "posts": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Post"
+                      }
+                    },
+                    "topics": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Topic"
+                      }
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "posts",
+                    "topics",
+                    "warnings"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          }
+        ]
+      }
+    },
+    "/api/courses/{courseId}/relevant": {
+      "post": {
+        "summary": "Find assignment-related materials",
+        "operationId": "postApiCoursesCourseidRelevant",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "posts": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Post"
+                      }
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "posts",
+                    "warnings"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Ranks up to 10 other attached posts using matching topic and title/description terms.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "assignment": {
+                    "$ref": "#/components/schemas/PostRef"
+                  }
+                },
+                "required": [
+                  "assignment"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          }
+        ]
+      }
+    },
+    "/api/profile": {
+      "get": {
+        "summary": "Read learner profile",
+        "operationId": "getApiProfile",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Update learner preferences",
+        "operationId": "putApiProfile",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Existing assessment evidence is retained; supplied evidence is ignored.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileUpdate"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete all saved data for the authenticated learner",
+        "operationId": "deleteApiProfile",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Deletes profile, lessons, and cached turns. Does not delete Google resources. Returns 409 while a lesson is updating."
+      }
+    },
+    "/api/profile/evidence/{evidenceId}": {
+      "delete": {
+        "summary": "Forget assessment evidence",
+        "operationId": "deleteApiProfileEvidenceEvidenceid",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Removes evidence from profile and lessons and clears cached turn snapshots.",
+        "parameters": [
+          {
+            "name": "evidenceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 250
+            }
+          }
+        ]
+      }
+    },
+    "/api/lessons": {
+      "get": {
+        "summary": "List up to 100 recent saved lessons",
+        "operationId": "getApiLessons",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "lessons": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LessonSummary"
+                      }
+                    }
+                  },
+                  "required": [
+                    "lessons"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create a lesson from accessible Classroom posts",
+        "operationId": "postApiLessons",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Lesson"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Loads current Google sources; per-attachment failures are returned. Up to 40 attachments, 15 MiB per file, 150 PDF pages, 250,000 characters per document and 600,000 characters per lesson.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLesson"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/lessons/{lessonId}": {
+      "get": {
+        "summary": "Resume lesson and refresh Google source access",
+        "operationId": "getApiLessonsLessonid",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Lesson"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "lessonId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Delete lesson and related evidence",
+        "operationId": "deleteApiLessonsLessonid",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "lessonId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          }
+        ]
+      }
+    },
+    "/api/lessons/{lessonId}/board": {
+      "put": {
+        "summary": "Save shared board",
+        "operationId": "putApiLessonsLessonidBoard",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "board": {
+                      "$ref": "#/components/schemas/Board"
+                    }
+                  },
+                  "required": [
+                    "board"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Board"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "lessonId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          }
+        ]
+      }
+    },
+    "/api/lessons/{lessonId}/turn": {
+      "post": {
+        "summary": "Run an adaptive teaching turn",
+        "operationId": "postApiLessonsLessonidTurn",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Lesson"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Google access is rechecked, including retries. Requires configured teaching model and readable sources. Returns 409 for stale revision, concurrent update, or conflicting request ID. Maximum 400 messages per lesson.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Turn"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "lessonId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          }
+        ]
+      }
+    },
+    "/api/lessons/{lessonId}/voice": {
+      "post": {
+        "summary": "Create an ephemeral Realtime credential",
+        "operationId": "postApiLessonsLessonidVoice",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "value"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Requires configured Realtime model and readable sources. Client uses value for WebRTC. Student tool calls must be submitted to the authoritative turn endpoint; never persist this credential.",
+        "parameters": [
+          {
+            "name": "lessonId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          }
+        ]
+      }
+    },
+    "/api/lessons/{lessonId}/sources/{sourceId}/preview": {
+      "get": {
+        "summary": "Fetch authorized PDF preview as base64",
+        "operationId": "getApiLessonsLessonidSourcesSourceidPreview",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string",
+                      "contentEncoding": "base64",
+                      "contentMediaType": "application/pdf"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "lessonId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          }
+        ]
+      }
+    },
+    "/api/lessons/{lessonId}/sources/{sourceId}/pdf": {
+      "get": {
+        "summary": "Fetch authorized inline PDF",
+        "operationId": "getApiLessonsLessonidSourcesSourceidPdf",
+        "responses": {
+          "200": {
+            "description": "PDF content",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "lessonId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "googleBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Google OAuth access token"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error",
+          "code"
+        ]
+      },
+      "Ok": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "const": true
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "PostRef": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "maxLength": 200
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "courseWork",
+              "courseWorkMaterials",
+              "announcements"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "type"
+        ]
+      },
+      "Course": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "maxLength": 200
+          },
+          "name": {
+            "type": "string"
+          },
+          "section": {
+            "type": "string"
+          },
+          "alternateLink": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "Topic": {
+        "type": "object",
+        "properties": {
+          "topicId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "maxLength": 200
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "topicId",
+          "name"
+        ]
+      },
+      "Post": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "maxLength": 200
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "courseWork",
+              "courseWorkMaterials",
+              "announcements"
+            ]
+          },
+          "courseId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "topicId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "maxLength": 200
+          },
+          "alternateLink": {
+            "type": "string"
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]+$",
+                  "maxLength": 200
+                },
+                "title": {
+                  "type": "string"
+                },
+                "mimeType": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "title"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "courseId",
+          "title",
+          "description",
+          "attachments"
+        ]
+      },
+      "Passage": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "heading": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text"
+        ]
+      },
+      "Source": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "postIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          },
+          "passages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Passage"
+            }
+          },
+          "originalUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "pdfAvailable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "mimeType",
+          "postIds",
+          "passages",
+          "originalUrl",
+          "pdfAvailable"
+        ]
+      },
+      "SourceFailure": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "reason"
+        ]
+      },
+      "Citation": {
+        "type": "object",
+        "properties": {
+          "sourceId": {
+            "type": "string"
+          },
+          "passageId": {
+            "type": "string"
+          },
+          "quote": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sourceId",
+          "passageId",
+          "quote"
+        ]
+      },
+      "BoardItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "maxLength": 200
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "text",
+              "arrow",
+              "rectangle"
+            ]
+          },
+          "x": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2000
+          },
+          "y": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2000
+          },
+          "width": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2000
+          },
+          "height": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2000
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "x",
+          "y",
+          "width",
+          "height",
+          "text"
+        ]
+      },
+      "Board": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BoardItem"
+            },
+            "maxItems": 100
+          },
+          "strokes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "points": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 2000
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 2000
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ]
+                  }
+                },
+                "color": {
+                  "type": "string",
+                  "pattern": "^#[0-9a-fA-F]{6}$"
+                }
+              },
+              "required": [
+                "points",
+                "color"
+              ]
+            },
+            "maxItems": 300
+          }
+        },
+        "required": [
+          "items",
+          "strokes"
+        ],
+        "description": "At most 10,000 stroke points total; item IDs must be unique."
+      },
+      "Evidence": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "lessonId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "maxLength": 200
+          },
+          "topic": {
+            "type": "string"
+          },
+          "answer": {
+            "type": "string"
+          },
+          "assessment": {
+            "type": "string",
+            "enum": [
+              "correct",
+              "partial",
+              "incorrect"
+            ]
+          },
+          "misconception": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "intervention": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "lessonId",
+          "topic",
+          "answer",
+          "assessment",
+          "misconception",
+          "intervention",
+          "createdAt"
+        ]
+      },
+      "ProfileUpdate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "pace": {
+            "type": "string",
+            "enum": [
+              "gentle",
+              "balanced",
+              "quick"
+            ]
+          },
+          "explanation": {
+            "type": "string",
+            "enum": [
+              "examples",
+              "diagrams",
+              "words"
+            ]
+          },
+          "goals": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "name",
+          "pace",
+          "explanation",
+          "goals"
+        ]
+      },
+      "Profile": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "pace": {
+            "type": "string",
+            "enum": [
+              "gentle",
+              "balanced",
+              "quick"
+            ]
+          },
+          "explanation": {
+            "type": "string",
+            "enum": [
+              "examples",
+              "diagrams",
+              "words"
+            ]
+          },
+          "goals": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "pace",
+          "explanation",
+          "goals",
+          "evidence"
+        ]
+      },
+      "Message": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "student",
+              "agent"
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "diagnostic",
+              "explain",
+              "reteach",
+              "practice",
+              "teach_back",
+              "recap",
+              "answer"
+            ]
+          },
+          "citations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "text",
+          "citations",
+          "createdAt"
+        ]
+      },
+      "LessonSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "maxLength": 200
+          },
+          "courseId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "courseId",
+          "title",
+          "updatedAt"
+        ]
+      },
+      "Lesson": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "maxLength": 200
+          },
+          "courseId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "posts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostRef"
+            }
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Source"
+            }
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceFailure"
+            }
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "diagnostic",
+              "teaching",
+              "checking",
+              "reteaching",
+              "practice",
+              "teach_back",
+              "complete"
+            ]
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            }
+          },
+          "board": {
+            "$ref": "#/components/schemas/Board"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "courseId",
+          "title",
+          "updatedAt",
+          "posts",
+          "sources",
+          "failures",
+          "phase",
+          "messages",
+          "board",
+          "evidence",
+          "createdAt",
+          "revision"
+        ]
+      },
+      "Turn": {
+        "type": "object",
+        "properties": {
+          "intent": {
+            "type": "string",
+            "enum": [
+              "teach",
+              "answer",
+              "question",
+              "simplify",
+              "example",
+              "why",
+              "skip",
+              "recap"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "requestId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "maxLength": 200
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "intent",
+          "text",
+          "requestId",
+          "revision"
+        ],
+        "description": "answer/question require nonblank text. Reuse requestId only with an identical payload for idempotent retry. revision must match the current lesson."
+      },
+      "CreateLesson": {
+        "type": "object",
+        "properties": {
+          "courseId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "maxLength": 200
+          },
+          "posts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostRef"
+            },
+            "minItems": 1,
+            "maxItems": 30
+          }
+        },
+        "required": [
+          "courseId",
+          "posts"
+        ]
+      }
+    }
+  }
+}

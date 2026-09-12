@@ -11,7 +11,16 @@
       "@agent/events": ["./packages/events/src/index.ts"],
       "@agent/agent-tools": ["./packages/agent-tools/src/index.ts"],
       "@agent/classroom-api": ["./packages/classroom-api/src/index.ts"]
-    }
+    },
+    "types": ["bun", "chrome"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
-  "include": ["packages/**/*.ts", "services/**/*.ts", "scripts/**/*.ts"]
+  "include": [
+    "packages/**/*.ts",
+    "services/**/*.ts",
+    "scripts/**/*.ts",
+    "apps/**/*.ts",
+    "tests/**/*.ts",
+    "playwright.config.ts"
+  ]
 }

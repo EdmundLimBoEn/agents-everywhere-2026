@@ -1,5 +1,7 @@
 # Why this belongs in Classroom
 
+> Planning revision: [the current PRD](./prd.md) and [hackathon scope](./hackathon-scope.md) take precedence. The primary surface is now a browser extension with a multi-post study overlay. Earlier add-on, single-item session, turn-in, and grading requirements below are historical and must be reconciled before implementation.
+
 The hackathon rejects agents that wait in a separate chat window. The useful ones show up where people already have work.
 
 Students already have work in Google Classroom. Courses, assignments, materials, announcements, due dates, submissions, and grades are that work. Teachers already create those items and grade them there. A teaching agent that lives somewhere else asks everyone to leave the job to talk about the job.

@@ -1,10 +1,10 @@
 # Locked decisions
 
-Facts from the ChatGPT grilling, plus the later Classroom lock. When they conflict, Classroom wins.
+The current [PRD](./prd.md) and [hackathon scope](./hackathon-scope.md) supersede earlier integration choices. Teaching behavior from the ChatGPT discussion still holds.
 
 ## Product lock after the share
 
-Google Classroom is a main focus. The agent lives on Classroom coursework. See [Why this belongs in Classroom](./theme-fit.md). Google OAuth is required. A custom teacher dashboard stays out. Teachers work in Classroom.
+The primary surface is a browser extension overlay on the real Google Classroom page, with multi-post selection, readable source tabs, and adaptive teaching. Teacher-installed add-on discovery and grade passback are deferred. Lessons can span several posts; they are not restricted to one assignment. See [Why this belongs in Classroom](./theme-fit.md). Google OAuth is required. A custom teacher dashboard stays out. Teachers work in Classroom.
 
 ## Grilling locks that still hold
 

@@ -1,5 +1,7 @@
 # SHARED PROJECT RULES
 
+> Planning revision: [the current PRD](./prd.md) and [hackathon scope](./hackathon-scope.md) take precedence. The primary surface is now a browser extension with a multi-post study overlay. Earlier add-on, single-item session, turn-in, and grading requirements below are historical and must be reconciled before implementation.
+
 Historical ChatGPT canvas. Classroom OAuth, the add-on, and `app/services/classroom` are now Machine 1 work. See `docs/theme-fit.md`.
 
 You are working on a hackathon project: a specialised adaptive AI study agent for students.

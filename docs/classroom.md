@@ -1,5 +1,7 @@
 # Google Classroom connections
 
+> Planning revision: [the current PRD](./prd.md) and [hackathon scope](./hackathon-scope.md) take precedence. The primary surface is now a browser extension with a multi-post study overlay. Earlier add-on, single-item session, turn-in, and grading requirements below are historical and must be reconciled before implementation.
+
 Classroom is the primary surface and a live data source. This page lists the real Google objects, iframes, OAuth scopes, and our mappings. It does not argue for the product. See [Why this belongs in Classroom](./theme-fit.md) for that.
 
 Official references:
