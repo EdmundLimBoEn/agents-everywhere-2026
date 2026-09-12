@@ -8,7 +8,7 @@ export function manage(root: HTMLElement, api: ApiClient, courseId: string, post
   dialog.addEventListener("close", () => dialog.remove());
   root.append(dialog);
   dialog.showModal();
-  let busy = false, documentId = "", revisionId = "", tabId = "", assignmentId = "";
+  let busy = false, documentId = "", revisionId = "", tabId = "", assignmentId = "", assignmentReady = true;
   async function run(job: () => Promise<void>) {
     if (busy) return;
     busy = true;
@@ -25,7 +25,7 @@ export function manage(root: HTMLElement, api: ApiClient, courseId: string, post
   }
   const prompt = field("Ask the agent to draft", true);
   form.append(btn("Generate draft for review", () => void run(async () => {
-    const draft = await api<{ title: string; text: string }>("/api/author/draft", { method: "POST", body: { prompt: prompt.value, ...(lessonId ? { lessonId } : {}) } });
+    const draft = await api<{ title: string; text: string }>("/api/author/draft", { method: "POST", body: { prompt: prompt.value, ...(lessonId ? { lessonId } : {}), ...(documentId ? { documentId } : {}) } });
     title.value = draft.title; text.value = draft.text;
     status.textContent = "Draft ready. Review and edit it before saving.";
   })));
@@ -89,10 +89,12 @@ export function manage(root: HTMLElement, api: ApiClient, courseId: string, post
   for (const post of posts.filter(p => p.type === "courseWork")) { const option = el("option", post.title); option.value = post.id; assignment.append(option); }
   assignmentLabel.append(assignment); form.append(assignmentLabel);
   assignment.onchange = () => void run(async () => {
+    assignmentReady = false;
     assignmentId = assignment.value;
     attachment.disabled = !!assignmentId; share.disabled = !!assignmentId;
-    if (!assignmentId) { status.textContent = "Creating a new assignment; attachments can be selected."; return; }
+    if (!assignmentId) { assignmentReady = true; status.textContent = "Creating a new assignment; attachments can be selected."; return; }
     const data = await api<{ title: string; description?: string; state: string; associatedWithDeveloper: boolean; dueDate?: { year: number; month: number; day: number }; dueTime?: { hours: number; minutes: number }; maxPoints?: number }>(`/api/courses/${courseId}/assignments/${assignmentId}`);
+    assignmentReady = true;
     title.value = data.title; text.value = data.description || ""; state.value = data.state;
     points.value = String(data.maxPoints ?? 0);
     due.value = data.dueDate ? new Date(Date.UTC(data.dueDate.year, data.dueDate.month - 1, data.dueDate.day, data.dueTime?.hours || 0, data.dueTime?.minutes || 0)).toISOString().slice(0, 16) : "";
@@ -110,12 +112,16 @@ export function manage(root: HTMLElement, api: ApiClient, courseId: string, post
   form.append(btn("Save assignment", () => {
     if (state.value !== "DRAFT" && !confirm(`Save this assignment with state ${state.value}? This changes what students can access.`)) return;
     void run(async () => {
+      if (!assignmentReady) throw new Error("Reload the selected assignment before saving");
       if (!courseId) throw new Error("Choose a Classroom course first");
       const saved = await api<{ id: string }>(`/api/courses/${courseId}/assignments${assignmentId ? `/${assignmentId}` : ""}`, { method: assignmentId ? "PATCH" : "POST", body: {
         title: title.value, description: text.value, state: state.value, maxPoints: Number(points.value), dueAt: due.value ? `${due.value}:00.000Z` : null,
         ...(!assignmentId ? { attachments: [...new Set(attachment.value.split(/\s+/).filter(Boolean))].map(id => ({ id, shareMode: share.value })) } : {}),
       } });
-      assignmentId = saved.id; attachment.disabled = true; share.disabled = true;
+      assignmentId = saved.id;
+      if (![...assignment.options].some(o => o.value === saved.id)) { const option = el("option", title.value); option.value = saved.id; assignment.append(option); }
+      assignment.value = saved.id;
+      attachment.disabled = true; share.disabled = true;
       link("Open saved assignment", `https://classroom.google.com/c/${courseId}/a/${saved.id}/details`);
       status.textContent = "Assignment saved. Further saves update this assignment.";
     });

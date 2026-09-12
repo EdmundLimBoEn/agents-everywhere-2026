@@ -2167,6 +2167,9 @@
           },
           "lessonId": {
             "type": "string"
+          },
+          "documentId": {
+            "type": "string"
           }
         },
         "required": [

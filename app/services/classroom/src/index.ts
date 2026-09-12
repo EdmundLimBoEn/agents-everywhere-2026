@@ -536,11 +536,19 @@ export function documentPassages(document: GoogleObject): Passage[] {
         `tab-${tab.tabProperties?.tabId || "main"}`,
         tab.tabProperties?.title,
       );
+      for (const kind of ["headers", "footers", "footnotes"])
+        for (const [partId, part] of Object.entries(tab.documentTab?.[kind] || {}))
+          content((part as GoogleObject).content || [], `tab-${tab.tabProperties?.tabId || "main"}-${kind}-${partId}`, tab.tabProperties?.title);
       tabs(tab.childTabs || []);
     }
   };
   if (document.tabs?.length) tabs(document.tabs);
-  else content(document.body?.content || [], "body");
+  else {
+    content(document.body?.content || [], "body");
+    for (const kind of ["headers", "footers", "footnotes"])
+      for (const [partId, part] of Object.entries(document[kind] || {}))
+        content((part as GoogleObject).content || [], `${kind}-${partId}`);
+  }
   return passages;
 }
 
