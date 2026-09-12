@@ -1,6 +1,7 @@
 {
   "name": "adaptive-study-agent",
   "private": true,
+  "type": "module",
   "workspaces": [
     "apps/*",
     "services/*",
@@ -8,6 +9,21 @@
     "scripts/*"
   ],
   "scripts": {
-    "typecheck": "bunx tsc --noEmit -p tsconfig.json"
+    "dev": "bun run build && bun --watch services/api/src/index.ts",
+    "start": "bun services/api/src/index.ts",
+    "build": "bun scripts/build.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "bun test services apps/extension/src",
+    "test:e2e": "playwright test",
+    "check": "bun run typecheck && bun run test && bun run build"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^5.4.149"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@types/bun": "^1.2.22",
+    "@types/chrome": "^0.1.12",
+    "typescript": "^5.9.2"
   }
 }

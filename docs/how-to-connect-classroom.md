@@ -1,5 +1,7 @@
 # How to connect Google Classroom
 
+> Planning revision: [the current PRD](./prd.md) and [hackathon scope](./hackathon-scope.md) take precedence. The primary surface is now a browser extension with a multi-post study overlay. Earlier add-on, single-item session, turn-in, and grading requirements below are historical and must be reconciled before implementation.
+
 Use this when you stand up OAuth and the add-on for the first time.
 
 ## Before you start

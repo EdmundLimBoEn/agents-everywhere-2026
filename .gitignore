@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.*
+!.env.example
+app/dist/
+app/data/
+app/test-results/
+app/playwright-report/
+.DS_Store

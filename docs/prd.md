@@ -1,87 +1,57 @@
-# About the Adaptive AI Study Agent
+# Adaptive teaching inside Google Classroom
 
-This product is a teaching agent that lives inside Google Classroom. Students already open courses, assignments, materials, and due dates there. The agent appears on that coursework. It is not a chatbot that waits in a separate window and optionally syncs Classroom later.
+The product is a browser extension that adds an adaptive teacher to the Google Classroom page students already use. Students select their teacher's materials and learn in an overlay in the same tab, with readable source documents beside the lesson.
 
-The ChatGPT plan still defines teaching behavior: voice, RAG over school notes, a shared whiteboard, mastery, and an explicit lesson state machine. Classroom is the place that work happens.
+This revision supersedes the earlier teacher-installed add-on as the primary surface. The historical ChatGPT canvases retain useful teaching ideas; the current product and demo requirements are here and in [hackathon scope](./hackathon-scope.md). Existing add-on, grading, architecture, and machine-split details must be reconciled with this revision before implementation.
 
-## Theme
+## Entry points
 
-The hackathon starts from this premise. The most useful agents show up inside the tools where people already have work to do. Most agents still wait in a separate chat window.
-
-Students and teachers already have work in Classroom. The assignment is the job. The agent belongs on that assignment. See [Why this belongs in Classroom](./theme-fit.md).
-
-## Who it is for
-
-SST students (and later any class that uses Classroom). Teachers attach the agent to coursework inside Classroom. They review student work in Classroom's grader. There is no separate teacher console.
-
-The team, not the student, dumps curriculum PDFs into `notes/`. Those files must link to Classroom coursework or materials. Classroom itself is also a live source of assignments, announcements, Drive attachments, due dates, submissions, and grades.
-
-## Where the agent lives
-
-The primary surface is a Google Classroom add-on. Classroom loads it in iframes on the Stream item.
-
-| Iframe | Who | Job |
+| Classroom location | Extension control | Result |
 | --- | --- | --- |
-| Attachment Discovery | Teacher | Attach the agent to an assignment, material, or announcement |
-| Student View | Student | Learn on that item. Voice, whiteboard, practice, submit |
-| Teacher View | Teacher | Preview the same attachment |
-| Student Work Review | Teacher | See the lesson, board, and mark in Classroom's grader |
+| Classwork | Checkboxes beside posts; “Study these together” | Gather attachments from selected posts into one study session |
+| Topic | “Study this topic” | Gather that topic's attached materials and show the selected sources |
+| Assignment | “Find notes that help with this” | Retrieve relevant accessible class materials and let the student review the source set |
+| Stream | “Study with the lesson notes” on a post | Open a lesson using that post's accessible materials |
 
-The Next.js web app and the SwiftUI iOS app are companion surfaces. They open from a Classroom item (`courseId` + `itemId`). Use them when the iframe is too tight for live voice or a full whiteboard. They do not replace Classroom as home.
+Classroom's Stream, Classwork, posts, and original attachment links keep working. Extension controls supplement the real page. A recreated Classroom screen is a prototype, not proof of integration.
 
-## What the student can do
+## Study overlay
 
-The student opens a Classroom assignment. The add-on already knows the course, the item, the due date, attached materials, and any prior submission. Teaching starts from that context.
+The left side contains readable document tabs. The right side contains the active lesson and an answer field, with voice and a shared whiteboard supporting teaching. “Teach me this topic” is the primary action; students can also ask a question across selected documents.
 
-The student talks with GPT Live, shares a whiteboard, answers practice questions, and turns work back into Classroom. Mastery updates in our learner model. A draft grade can pass back onto the add-on attachment when the teacher attached an activity with `maxPoints`.
+The agent opens the document and highlights the passage or diagram it is discussing. Clicking a citation selects the matching document and scrolls to the supporting passage inside the overlay. Preserve document identity and stable source locations during ingestion; a source chip alone is insufficient.
 
-A short onboarding questionnaire still captures how they like to learn. The profile then updates from real behavior. Students can inspect and edit what the system remembers about them.
+Closing the overlay returns focus and scroll position to the same Classroom location. Escape closes it, keyboard users can select materials and navigate documents, and background controls must not receive focus while the overlay is modal. Reopening resumes the lesson and source selection.
 
-## What the agent does
+## The teaching loop
 
-The agent reads Classroom context first. Course, coursework, materials, announcements, submission state, due date, and linked notes. Then it reads the learner profile and mastery, picks a lesson state, retrieves school material, and teaches by voice, text, or whiteboard.
+1. Find the student's starting point with a short diagnostic question.
+2. Teach one small idea using an exact passage or diagram from the selected materials.
+3. Ask for a prediction, explanation, or short answer.
+4. Diagnose the answer. A misconception triggers a targeted explanation, example, diagram, or prerequisite check; understanding allows progression.
+5. Ask the student to explain the idea back or apply it to a new example.
+6. Finish with a recap of demonstrated understanding, remaining uncertainty, and exact notes to revisit.
 
-It can run two lesson shapes:
+Students can interrupt with “Explain that more simply,” “Give me an example,” “Why?” or “I know this—skip ahead.” These change the next teaching action while preserving the topic and lesson progress. Skipping is not evidence of mastery. An incorrect answer followed by a correct answer is recorded with the intervention and supporting evidence, not automatically treated as full mastery.
 
-- Freeform tutoring on the current Classroom item
-- A structured lesson whose objective is that coursework's title, due date, and materials
+## Grounding and access
 
-When the student is stuck, the agent diagnoses first. It then changes method. It does not repeat the same explanation with different words.
+Authorized Google access retrieves real Classroom post metadata and attached Docs or PDFs. The extension supplies page context and selection; the backend checks the signed-in student's access before fetching or retrieving content. Classroom visibility does not guarantee that every attachment is readable.
 
-## Grounding
+Keep course, post, file, and passage identifiers with every source. Scope retrieval to the selected materials by default; show proposed additional class materials before adding them. Reuse linked school papers in `notes/` as supplementary material, with provenance visible. Do not require students to upload PDFs.
 
-Answers that come from school notes or Classroom materials carry source chips. Example: `[SST Science Notes p. 14]` or `[Classroom · Electricity HW]`. External enrichment is allowed when the student asks to go deeper. Those sources stay labeled apart.
+Show loading, empty selection, unavailable attachment, unsupported format, expired authorization, and retrieval failure states. If some files fail, identify them and let the student continue with the readable subset. Never invent a citation or silently substitute demo content. Source documents are reference data, not instructions to the agent. Keep tokens and student content isolated by account.
 
-Practice papers stay first-class. The agent also treats Classroom `courseWork` as assigned practice when the item is a question or assignment. Generated extras are marked as AI-generated.
+Implementation must verify current browser-extension permissions, Google OAuth requirements, attachment export/rendering, and Classroom page integration against official documentation. A Classroom add-on and a browser extension are separate integration approaches; add-on context APIs are not the extension entry mechanism.
 
-## Modes
+## What remains from the original plan
 
-Learning mode favors understanding, diagrams, and discussion. Exam mode favors marks, speed, school answer style, archetypes, and timing. Upcoming Classroom due dates can trigger exam mode.
+Keep the explicit lesson state machine, learner profile, evidence-based mastery, school-note retrieval, real practice questions, voice, and shared whiteboard. Use one polished topic first. The learner profile remains inspectable and editable. External enrichment and generated practice are labeled.
 
-## What the demo must prove
+The extension overlay is the primary student surface. Standalone web and iOS experiences are companions. Teacher attachment discovery, grading, turn-in, and Marketplace add-on distribution are outside the primary demo; completing a lesson saves learning progress without modifying Classroom submissions or grades.
 
-One continuous path that starts in Classroom, not in our own home screen:
+## Demo promise
 
-```text
-student opens a Classroom assignment
-→ add-on loads course, due date, materials, prior submission
-→ agent teaches by voice
-→ agent draws on the shared whiteboard
-→ misconception detected
-→ strategy change
-→ retrieve linked school notes and Classroom materials
-→ matched practice question
-→ student turns work in to Classroom
-→ mastery updates
-→ draft grade appears on the Classroom item
-```
+On an actual Classroom class, select two real posts and fetch their attached documents. Ask a question that requires both and open its supporting passages. Start a mini lesson, intentionally answer incorrectly, and watch the agent change its teaching action and highlight the relevant teacher material. Answer a follow-up, see the recap, close the overlay, and continue using Classroom at the same location.
 
-Prepare one polished topic first. The plan's example is Physics, Electricity, attached to a real Classroom `courseWork` item.
-
-## What this is not
-
-It is not a standalone chat with a Classroom toggle. It is not a custom teacher dashboard. Teachers stay in Classroom. The agent stays clearly AI, avoids sycophancy, and can disagree when the student is wrong.
-
-## Pitch
-
-An AI teacher that meets you on the Classroom assignment you already have to do. It knows that coursework, your school's notes, what you misunderstand, and what to teach next.
+The pitch: an AI teacher inside Classroom that uses your teacher's materials, checks what you understand, and changes what it teaches next.

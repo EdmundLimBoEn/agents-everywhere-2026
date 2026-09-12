@@ -1,53 +1,52 @@
-# About hackathon scope
+# Hackathon scope
 
-Judges should open a Classroom assignment and meet the agent there. A catalogue of unfinished modules is a miss. A polished web chat that never touches Classroom is also a miss.
+The demo must prove both real Classroom integration and adaptive teaching. [The revised PRD](./prd.md) is authoritative over earlier add-on and standalone-app plans.
 
 ## Must work
 
-Google sign-in, Classroom add-on student view on one `courseWork` item, onboarding questionnaire, linked notes RAG, voice, whiteboard, the lesson state machine, learner profile, mastery updates, practice questions, citations, turn-in or draft grade passback, and a companion dashboard that still names the Classroom item.
-
-## Cut first if time runs out
-
-Offline mode, collaborative sessions, full iOS parity, notifications, advanced graph visualization, large subject coverage, Marketplace listing, Link Upgrade iframe, and writing new Classroom assignments from the agent.
-
-Do not cut the add-on student view or the `notes/` to coursework link.
+- Browser extension on a real Classroom class, with working Stream and Classwork navigation.
+- Selection across posts, topic study, assignment-related notes, and a Stream study entry.
+- Authorized retrieval of attached Google Docs and PDFs, with visible per-file access failures.
+- Same-tab overlay with readable document tabs and citations that navigate to exact supporting passages.
+- Cross-document questions and an agent-led mini lesson with diagnostic, teaching, answer check, adaptation, teach-back, and recap.
+- Student interruptions, learner evidence saved, voice, and a shared whiteboard supporting the lesson.
+- Closing and reopening without losing the Classroom position or lesson progress.
 
 ## Primary demo
 
-Use one polished topic attached to a real Classroom assignment. Suggested script:
+Use one topic with two real posts and two accessible attached documents. Photosynthesis is the proposed example; use actual teacher materials rather than fabricated files.
 
-1. Teacher has already attached the add-on to Electricity homework.
-2. Student opens that assignment in Classroom.
-3. Add-on loads due date, materials, and linked notes.
-4. Agent notices an algebra prerequisite weakness.
-5. Agent explains current, voltage, and resistance by voice.
-6. Agent draws a circuit.
-7. Student states a misconception.
-8. Agent recognizes it and switches method.
-9. Agent retrieves the exact school note and a Classroom material.
-10. Agent gives a school-paper-style question.
-11. Student answers. Agent marks it.
-12. Work turns in. Draft grade appears. Mastery rises.
+1. Open the real class's Stream, then Classwork; both remain usable.
+2. Select two posts and click “Study these together.”
+3. Fetch their attachments and show both readable document tabs.
+4. Ask a question requiring both sources; open the supporting passages.
+5. Click “Teach me this topic.” The agent asks what plants get from sunlight.
+6. Student answers “Food.” The agent diagnoses the energy-versus-food misconception.
+7. Agent explains that light supplies energy to make food and opens the relevant teacher diagram or passage. Use an actual available source, not an assumed diagram.
+8. Agent asks the student to identify the food produced, then predict what happens without light.
+9. Student asks for a simpler explanation; the next teaching action responds to that request.
+10. Student explains the concept back. The recap distinguishes demonstrated understanding from topics still needing practice and links the notes to revisit.
+11. Close the overlay and continue on the same Classroom page. Reopen to resume.
 
-## Daily integration check
+## Acceptance checks before demo
 
-If this path works, the project works:
+- Live integration: verify real course/post/file identities and retrieved content; label any prototype separately.
+- Selection: two posts share one session; duplicate attachments appear once; no selection cannot start a lesson.
+- Access: a denied attachment is identified; readable files still work; another student's content cannot be retrieved.
+- Sources: both cross-document citations open the correct document and passage; unavailable evidence produces an explicit limitation.
+- Adaptation: run the same diagnostic with a wrong answer and a correct answer; verify different next actions. Rewording the same script does not pass.
+- Interruptions: simplify, example, why, and skip each affect the next action; skip alone does not increase mastery.
+- Navigation: test Stream, Classwork, posts, original attachments, overlay close/reopen, keyboard use, and restored focus/scroll after Classroom page changes.
+- Recovery: authorization expiry and retrieval failure offer a usable retry without invented sources or lost lesson state.
 
-```text
-Classroom assignment opens
-→ Machine 1 validates add-on context
-→ Machine 1 loads coursework and submission
-→ Machine 2 reads learner state and linked notes
-→ Machine 2 chooses a teaching action
-→ Machine 1 renders it in the iframe or companion
-→ Machine 2 requests a whiteboard action
-→ Machine 1 draws it
-→ student submits an answer
-→ Machine 2 marks it and updates mastery
-→ Machine 1 turns in or passes back a draft grade
-→ Classroom grader shows the review iframe
-```
+These are implementation acceptance checks, not claims that the current repository passes them.
+
+## Outside this demo
+
+Teacher-installed add-on discovery, grade passback, submission turn-in, custom teacher dashboards, full iOS parity, offline teaching, collaboration, notifications, advanced graph visualization, and broad subject coverage. Retain the broader roadmap without making these prerequisites for the extension demo.
 
 ## Work split
 
-Machine 1 owns product, Classroom OAuth, the add-on, platform, and realtime. Machine 2 owns AI, RAG, and teaching. Details live in [Two-machine split](./two-machine-split.md).
+Machine 1 owns the extension, Classroom page integration, Google authorization, attachment loading, document viewer, overlay, voice transport, and platform. Machine 2 owns grounded retrieval, source anchors, teaching decisions, lesson state, learner evidence, and practice. Agree on the selected-source session contract first: course ID, selected post IDs and types, attachment IDs, source locations, learner ID, and lesson ID. Backend authorization validates these identifiers.
+
+The older [two-machine split](./two-machine-split.md) is a reference for service ownership; its add-on-specific entry and grading requirements are superseded.
