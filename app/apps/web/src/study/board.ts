@@ -21,10 +21,10 @@ export function mountBoard(host: HTMLElement, initial: Board, save: (board: Boar
   const added = board.items.filter(item => !board.scene || changed.has(item.id)).flatMap(item => {
     const common = { x: item.x, y: item.y, customData: { boardItemId: item.id } };
     return convertToExcalidrawElements(item.kind === "text"
-      ? [{ ...common, type: "text", text: item.text }]
+      ? [{ ...common, type: "text", fontFamily: 2, text: item.text }]
       : [
           { ...common, type: item.kind, width: item.width, height: item.height },
-          { ...common, x: item.x + 8, y: item.y + 8, type: "text", text: item.text },
+          { ...common, x: item.x + 8, y: item.y + 8, type: "text", fontFamily: 2, text: item.text },
         ]);
   });
   const strokes = board.scene ? [] : board.strokes.filter(s => s.points.length).flatMap(stroke => {
@@ -57,7 +57,7 @@ export function mountBoard(host: HTMLElement, initial: Board, save: (board: Boar
   add.onclick = () => {
     if (!input.value.trim() || !api) return;
     api.updateScene({ captureUpdate: CaptureUpdateAction.IMMEDIATELY, elements: [...api.getSceneElements(), ...convertToExcalidrawElements([
-      { type: "text", x: 30, y: 35 + api.getSceneElements().length * 40, text: input.value.trim() },
+      { type: "text", fontFamily: 2, x: 30, y: 35 + api.getSceneElements().length * 40, text: input.value.trim() },
     ])] });
     input.value = "";
   };

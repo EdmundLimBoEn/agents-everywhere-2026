@@ -453,6 +453,11 @@ test("Excalidraw draws native shapes, restores scenes and loads local fonts", as
   const saved = requests.filter(r => r.path.endsWith("/board")).at(-1)!.body.scene.elements;
   expect(saved.some((e: { type: string }) => e.type === "rectangle")).toBe(true);
   expect(saved.some((e: { text?: string }) => e.text === "Saved in this lesson")).toBe(true);
+  await page.getByTitle(/^Text/).click();
+  const textBounds = (await canvas.boundingBox())!;
+  await page.mouse.click(textBounds.x + 100, textBounds.y + 150);
+  await page.locator(".excalidraw-wysiwyg").fill("Native text");
+  await page.keyboard.press("Escape");
   await expect.poll(() => fonts.length).toBeGreaterThan(0);
   expect(fonts.every(url => new URL(url).origin === new URL(page.url()).origin)).toBe(true);
   expect(errors).toEqual([]);
