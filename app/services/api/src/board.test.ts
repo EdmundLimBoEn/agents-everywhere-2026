@@ -13,10 +13,12 @@ test("Excalidraw scenes retain negative coordinates, deleted shapes and images; 
   expect(() => board({ ...value, scene: { ...value.scene, files: { image1: { ...value.scene.files.image1, dataURL: "https://example.com/image.png" } } } })).toThrow();
 });
 
-test("arrows persist signed displacements but shape dimensions remain nonnegative", () => {
-  const arrow = { id: "return", kind: "arrow" as const, x: 300, y: 200, width: -180, height: -80, text: "returns" };
-  const value = { items: [arrow], strokes: [], scene: { elements: [], files: {}, sourceItems: [arrow] } };
-  expect(board(value)).toEqual(value);
-  for (const kind of ["rectangle", "ellipse", "text"])
-    expect(() => board({ items: [{ ...arrow, kind }], strokes: [] })).toThrow("Invalid board item");
+test("arrows and sketch lines persist signed displacements but shape dimensions remain nonnegative", () => {
+  for (const kind of ["arrow", "line"] as const) {
+    const arrow = { id: "return", kind, x: 300, y: 200, width: -180, height: -80, text: "returns" };
+    const value = { items: [arrow], strokes: [], scene: { elements: [], files: {}, sourceItems: [arrow] } };
+    expect(board(value)).toEqual(value);
+    for (const kind of ["rectangle", "ellipse", "text"])
+      expect(() => board({ items: [{ ...arrow, kind }], strokes: [] })).toThrow("Invalid board item");
+  }
 });

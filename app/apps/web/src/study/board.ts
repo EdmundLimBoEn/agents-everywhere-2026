@@ -34,10 +34,19 @@ export function annotationElements(item: BoardItem, targets: ReadonlyMap<string,
     convert([{ ...meta, type: "text", x, y, text, autoResize: false }]).map(element => ({
       ...element, width: Math.min(element.width, Math.max(160, Math.min(item.width || 260, 360))),
     })), null, { repairBindings: true, refreshDimensions: true });
-  const arrow = (from: Point, to: Point, text = "") => convert([{
-    ...meta, type: "arrow", x: from.x, y: from.y, endArrowhead: "arrow",
-    points: [[0, 0], [to.x - from.x, to.y - from.y]], ...label(text, 16),
-  }]);
+  const arrow = (from: Point, to: Point, text = "", kind: "arrow" | "line" = "arrow") => {
+    const elements = convert([{
+      ...meta, type: kind, x: from.x, y: from.y, startArrowhead: null, endArrowhead: kind === "arrow" ? "arrow" : null,
+      points: [[0, 0], [to.x - from.x, to.y - from.y]], ...(kind === "arrow" ? label(text, 16) : {}),
+    }]);
+    // Excalidraw binds text to arrows, but silently ignores a line's label.
+    if (kind === "line" && text.trim()) {
+      const caption = note((from.x + to.x) / 2, (from.y + to.y) / 2, text);
+      if (caption[0]) caption[0] = { ...caption[0], x: caption[0].x - caption[0].width / 2, y: caption[0].y - caption[0].height - 8 };
+      elements.push(...caption);
+    }
+    return elements;
+  };
   switch (item.kind) {
     case "text": {
       const text = note(item.x, item.y, item.text);
@@ -45,15 +54,24 @@ export function annotationElements(item: BoardItem, targets: ReadonlyMap<string,
       const start = edge(text[0], centre(target), 4);
       return [...text, ...arrow(start, edge(target, start, 6))];
     }
+    case "line":
     case "arrow": {
       const from = target && inside(target, item, 20) ? { x: centre(target).x, y: target.y - 80 } : { x: item.x, y: item.y };
-      return arrow(from, target ? edge(target, from, 6) : { x: item.x + item.width, y: item.y + item.height }, item.text);
+      return arrow(from, target ? edge(target, from, 6) : { x: item.x + item.width, y: item.y + item.height }, item.text, item.kind);
     }
     default: {
-      if (!target)
-        return convert([{ ...meta, type: item.kind, x: item.x, y: item.y,
-          width: Math.max(item.width, item.text.trim() ? 160 : 40), height: Math.max(item.height, item.text.trim() ? 80 : 40),
-          backgroundColor: "#e9f5ee", fillStyle: "solid", ...label(item.text) }]);
+      if (!target) {
+        const width = item.width || 160, height = item.height || 80;
+        const caption = item.text.trim() ? note(item.x + width + 12, item.y, item.text) : [];
+        const inset = item.kind === "ellipse" ? Math.SQRT2 : 1;
+        const fits = !caption[0] || (width >= (caption[0].width + 20) * inset && height >= (caption[0].height + 20) * inset);
+        const shape = convert([{ ...meta, type: item.kind, x: item.x, y: item.y, width, height,
+          backgroundColor: "#e9f5ee", fillStyle: "solid", ...(fits ? label(item.text) : {}) }]);
+        if (fits || !caption[0]) return shape;
+        // A caption must not enlarge a physical object and move it into nearby force vectors.
+        caption[0] = { ...caption[0], y: item.y + (height - caption[0].height) / 2 };
+        return [...shape, ...caption];
+      }
       const pad = 14, box = { x: target.x - pad, y: target.y - pad, width: target.width + 2 * pad, height: target.height + 2 * pad };
       const text = item.text.trim() ? note(box.x, box.y - 32, item.text) : [];
       if (text[0]) text[0] = { ...text[0], y: box.y - text[0].height - 12 };
@@ -78,7 +96,21 @@ export function mountBoard(host: HTMLElement, initial: Board, save: (board: Boar
   const targets = new Map(existing.filter(element => element.isDeleted !== true && typeof element.id === "string")
     .map(element => [element.id as string, element as unknown as Box]));
   // One group per tutor item, so a label and its arrow appear together when the tutor draws.
-  const groups = board.items.filter(item => !board.scene || changed.has(item.id)).map(item => annotationElements(item, targets));
+  const drawingItems = board.items.filter(item => !board.scene || changed.has(item.id));
+  const groups = drawingItems.map(item => annotationElements(item, targets));
+  // Move new free captions clear of other labels; student marks and bound labels stay put.
+  const movable = new Set(groups.flatMap((group, i) => drawingItems[i].target ? [] : group.filter(e => e.type === "text" && !e.containerId)));
+  const occupied = [...existing, ...groups.flat()].filter(e => e.type === "text" && e.isDeleted !== true && !movable.has(e as ExcalidrawElement)) as ExcalidrawElement[];
+  for (const group of groups) for (const [i, element] of group.entries()) {
+    if (!movable.has(element)) continue;
+    let caption = element;
+    let collision: ExcalidrawElement | undefined;
+    while ((collision = occupied.find(other => caption.x < other.x + other.width + 8 && caption.x + caption.width + 8 > other.x &&
+      caption.y < other.y + other.height + 8 && caption.y + caption.height + 8 > other.y)))
+      caption = { ...caption, y: collision.y + collision.height + 8 };
+    group[i] = caption;
+    occupied.push(caption);
+  }
   const strokes = board.scene ? [] : board.strokes.filter(s => s.points.length).flatMap(stroke => {
     const first = stroke.points[0];
     return convertToExcalidrawElements([{ type: "line", x: first.x, y: first.y,

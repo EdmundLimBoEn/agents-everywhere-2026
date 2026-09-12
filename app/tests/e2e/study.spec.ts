@@ -1,8 +1,11 @@
 import { test, expect, type Page } from "@playwright/test";
-import { lessonFixture, posts, profile } from "./fixtures";
+import { lessonFixture, physicsLessonFixture, physicsScenarios, posts, profile } from "./fixtures";
+import { applyReply, generateReply } from "../../services/agent/src/index";
+import { board as validateBoard } from "../../services/api/src/validation";
+import type { Lesson, TurnInput, TutorReply } from "../../packages/shared-types/src/study";
 
-async function mockClassroom(page: Page) {
-  let lesson = lessonFixture();
+async function mockClassroom(page: Page, initial = lessonFixture(), tutor?: (lesson: Lesson, input: TurnInput) => Promise<TutorReply>) {
+  let lesson = initial;
   const requests: { path: string; method: string; body: any }[] = [];
   await page.route("**/api/**", async (route) => {
     const request = route.request(),
@@ -35,6 +38,11 @@ async function mockClassroom(page: Page) {
       lesson.board = body;
       data = lesson;
     } else if (path === "/api/lessons/lesson-1/turn") {
+      if (tutor) {
+        lesson = applyReply(lesson, body, await tutor(lesson, body));
+        await route.fulfill({ json: lesson });
+        return;
+      }
       const diagnostic = body.intent === "teach";
       // Answers sent from the whiteboard tab also carry a picture; only questions get the annotated reply here.
       const whiteboard = body.intent === "question" && !!body.boardSnapshot;
@@ -124,7 +132,7 @@ async function mockClassroom(page: Page) {
   return requests;
 }
 
-async function chooseMaterials(page: Page) {
+async function chooseMaterials(page: Page, title = "Photosynthesis") {
   await page.goto("/");
   await page.getByRole("checkbox").nth(0).check();
   await page.getByRole("checkbox").nth(1).check();
@@ -132,7 +140,7 @@ async function chooseMaterials(page: Page) {
     .getByRole("button", { name: "Study these together →", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Photosynthesis", exact: true }),
+    page.getByRole("heading", { name: title, exact: true }),
   ).toBeVisible();
 }
 
@@ -738,3 +746,102 @@ test("Whiteboard remains discoverable with many source documents", async ({ page
     expect(scrolled.x + scrolled.width).toBeLessThanOrEqual(bar.x + bar.width);
   }
 });
+
+for (const live of [false, true]) for (const scenario of physicsScenarios) {
+  test(`whiteboard physics ${live ? "live" : "rendering"}: ${scenario.name}`, async ({ page }, testInfo) => {
+    test.skip(live && process.env.RUN_LIVE_WHITEBOARD !== "1", "Opt in to calls to the configured teaching model with synthetic physics notes.");
+    test.setTimeout(live ? 180_000 : 30_000);
+    await page.setViewportSize({ width: 1600, height: 1100 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const errors: string[] = [];
+    page.on("pageerror", error => errors.push(error.message));
+    const replies: TutorReply[] = [];
+    const requests = await mockClassroom(page, physicsLessonFixture(), async (lesson, input) => {
+      const reply = await generateReply(lesson, { ...profile, goals: "Understand forces", explanation: "diagrams" }, input, live
+        ? { apiKey: process.env.OPENAI_API_KEY || "", model: process.env.OPENAI_MODEL || "" }
+        : { apiKey: "test", model: "test", fetcher: (async () => Response.json({ status: "completed", output: [{ type: "message", content: [{
+          type: "output_text", text: JSON.stringify({ text: scenario.text, action: "answer", assessment: "none", misconception: null,
+            citations: [{ sourceId: "source-a", passageId: "forces", quote: "The resultant force is the vector sum of external forces: F_net = ma." }],
+            board: scenario.board.map(item => ({ ...item, target: null })),
+          }),
+        }] }] })) as unknown as typeof fetch });
+      replies.push(reply);
+      return reply;
+    });
+    await chooseMaterials(page, "Forces and motion");
+    await page.getByRole("button", { name: "Whiteboard", exact: true }).click();
+    const ask = async (question: string) => {
+      const count = replies.length;
+      await page.getByRole("textbox", { name: "Ask about your drawing" }).fill(question);
+      await page.getByRole("button", { name: "Ask the tutor ✎", exact: true }).click();
+      await expect.poll(() => replies.length, { timeout: 125_000 }).toBe(count + 1);
+      // An unchanged diagram needs no autosave; explicitly save when checking a follow-up.
+      if (count) await page.getByRole("button", { name: "Save", exact: true }).click();
+      await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Whiteboard", exact: true })).toHaveAttribute("aria-pressed", "true");
+      const saved = requests.filter(r => r.path.endsWith("/board")).at(-1)!.body;
+      expect(validateBoard(saved)).toEqual(saved);
+      return saved;
+    };
+    const saved = await ask(scenario.question);
+    const turn = requests.find(r => r.path.endsWith("/turn"))!.body;
+    expect(turn).toMatchObject({ text: scenario.question, intent: "question", whiteboard: true });
+    expect(turn.boardSnapshot).toBeUndefined(); // The initial board is empty.
+    const reply = replies[0];
+    await testInfo.attach("generated-reply", { body: JSON.stringify(reply, null, 2), contentType: "application/json" });
+    expect(reply.board.filter(item => ["rectangle", "ellipse"].includes(item.kind)).length).toBeGreaterThanOrEqual(3);
+    expect(reply.board.some(item => item.kind === "line")).toBe(true);
+    expect(reply.board.some(item => item.kind === "arrow" && item.height > 0)).toBe(true);
+    if (scenario.name === "car") {
+      expect(reply.board.some(item => item.kind === "arrow" && item.height < 0)).toBe(true);
+      expect(reply.board.some(item => item.kind === "arrow" && item.width < 0)).toBe(true);
+      expect(reply.board.some(item => item.kind === "arrow" && item.width > 0)).toBe(true);
+      expect(reply.text).toMatch(/constant[\s-]+(?:speed|velocity)|steady/i);
+    } else {
+      expect(reply.text).toMatch(/gravity|weight/i);
+      expect(reply.text).toMatch(/downward|accelerat/i);
+      expect(reply.text).toMatch(/air resistance|drag/i);
+    }
+    for (const item of saved.items) {
+      const element = saved.scene.elements.find((e: any) => e.customData?.boardItemId === item.id && e.type === item.kind);
+      expect(element).toBeDefined();
+      if (item.kind === "arrow" || item.kind === "line") {
+        const start = element.points[0], end = element.points.at(-1);
+        // Excalidraw insets arrow endpoints by half a pixel at each end.
+        expect(Math.abs(end[0] - start[0] - item.width)).toBeLessThanOrEqual(1);
+        expect(Math.abs(end[1] - start[1] - item.height)).toBeLessThanOrEqual(1);
+        expect(element.endArrowhead).toBe(item.kind === "arrow" ? "arrow" : null);
+        if (item.kind === "line" && item.text.trim())
+          expect(saved.scene.elements.some((e: any) => e.customData?.boardItemId === item.id && e.type === "text" && e.originalText === item.text)).toBe(true);
+      } else if (item.kind !== "text") {
+        expect(element.width).toBe(item.width);
+        expect(element.height).toBe(item.height);
+      }
+    }
+    const labels = saved.scene.elements.filter((e: any) => e.type === "text");
+    for (const label of labels.filter((e: any) => !e.containerId))
+      expect(labels.some((other: any) => other.id !== label.id && label.x < other.x + other.width && label.x + label.width > other.x &&
+        label.y < other.y + other.height && label.y + label.height > other.y)).toBe(false);
+    await page.getByRole("button", { name: "Fit drawing", exact: true }).click();
+    await page.screenshot({ path: testInfo.outputPath(`${scenario.name}.png`), fullPage: true });
+    // Reopening uses the persisted scene, including small sketch parts and signed lines.
+    await page.getByRole("button", { name: "Forces notes", exact: true }).click();
+    await page.getByRole("button", { name: "Whiteboard", exact: true }).click();
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    expect(requests.filter(r => r.path.endsWith("/board")).at(-1)!.body.scene.elements.map((e: any) => e.id))
+      .toEqual(saved.scene.elements.map((e: any) => e.id));
+    if (live && scenario.name === "car") {
+      const steady = await ask("Now the car moves right at constant velocity. Traction is 600 N and resistance is 600 N. Update the same diagram with the resultant force.");
+      const response = replies.at(-1)!;
+      await testInfo.attach("constant-velocity-reply", { body: JSON.stringify(response, null, 2), contentType: "application/json" });
+      expect(response.text + response.board.map(item => item.text).join(" ")).toMatch(/0\s*N|zero/i);
+      const horizontal = response.board.filter(item => item.kind === "arrow" && item.height === 0);
+      expect(horizontal.some(right => right.width > 0 && horizontal.some(left => left.width === -right.width))).toBe(true);
+      expect(steady.items.some((item: any) => saved.items.some((old: any) => old.id === item.id && old.kind === item.kind))).toBe(true);
+      expect(requests.filter(r => r.path.endsWith("/turn")).at(-1)!.body.boardSnapshot).toMatch(/^data:image\/jpeg;base64,/);
+      await page.screenshot({ path: testInfo.outputPath("car-constant-velocity.png"), fullPage: true });
+    }
+    expect(errors).toEqual([]);
+  });
+}

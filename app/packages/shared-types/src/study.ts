@@ -55,14 +55,14 @@ export type LessonPhase =
   | "complete";
 export type BoardItem = {
   id: string;
-  kind: "text" | "arrow" | "rectangle" | "ellipse";
+  kind: "text" | "arrow" | "line" | "rectangle" | "ellipse";
   x: number;
   y: number;
-  /** Nonnegative shape size; arrows use signed x/y displacements from their start. */
+  /** Nonnegative shape size; arrows and lines use signed x/y displacements from their start. */
   width: number;
   height: number;
   text: string;
-  /** Whiteboard element the tutor points at (text, arrow) or encloses (rectangle, ellipse). */
+  /** Whiteboard element the tutor points at (text, arrow, line) or encloses (rectangle, ellipse). */
   target?: string;
 };
 export type BoardStroke = { points: { x: number; y: number }[]; color: string };

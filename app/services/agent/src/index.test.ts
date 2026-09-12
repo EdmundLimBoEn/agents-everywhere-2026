@@ -398,7 +398,7 @@ describe("whiteboard annotations", () => {
   test("generation constrains targets to the current student shapes, including empty and tutor-only boards", async () => {
     const tutorOnly: Lesson = { ...lesson, board: { items: [{ id: "tutor-0", kind: "rectangle", x: 0, y: 0, width: 100, height: 50, text: "Leaf" }], strokes: [] } };
     for (const [current, allowed] of [[drawn, ["battery", "wire", "label", null]], [lesson, [null]], [tutorOnly, [null]]] as const) {
-      await generateReply(current, profile, { ...question, whiteboard: true }, config(answer, (body) => {
+      await generateReply(current, profile, { ...question, whiteboard: true }, config({ ...answer, board: [{ id: "note", kind: "text", x: 0, y: 0, width: 200, height: 40, text: "Energy", target: null }] }, (body) => {
         const target = body.text.format.schema.properties.board.items.properties.target;
         expect(target.enum).toEqual(allowed);
       }));
@@ -419,6 +419,33 @@ describe("whiteboard annotations", () => {
     const next = applyReply(current, input, result);
     expect(next.board.items.slice(0, 2)).toEqual([left, node]);
     expect(new Set(next.board.items.map(item => item.id)).size).toBe(3);
+  });
+
+  test("physical sketches allow signed lines and reject invisible force vectors", () => {
+    const passages = retrieve(lesson.sources, "");
+    const line = { id: "branch", kind: "line", x: 300, y: 200, width: -180, height: -80, text: "", target: null };
+    expect(validateReply({ ...reply, board: [line] }, passages).board[0]?.kind).toBe("line");
+    for (const kind of ["line", "arrow"])
+      expect(() => validateReply({ ...reply, board: [{ ...line, kind, width: 0, height: 0 }] }, passages)).toThrow("invalid board");
+  });
+
+  test("an empty whiteboard gets enough output for a complete diagram and retries a missing drawing", async () => {
+    let attempts = 0;
+    const mark = { id: "object", kind: "ellipse", x: 400, y: 200, width: 60, height: 60, text: "", target: null };
+    const cfg = config(answer, body => {
+      expect(body.max_output_tokens).toBe(16000);
+      expect(body.text.format.schema.properties.board.minItems).toBe(1);
+    });
+    const fetcher = cfg.fetcher;
+    cfg.fetcher = (async (...args: Parameters<typeof fetch>) => {
+      await fetcher(...args);
+      return Response.json({ status: "completed", output: [{ type: "message", content: [{ type: "output_text",
+        text: JSON.stringify({ ...answer, board: attempts++ ? [mark] : [] }),
+      }] }] });
+    }) as typeof fetch;
+    const result = await generateReply(lesson, profile, { ...input, intent: "question", whiteboard: true }, cfg);
+    expect(attempts).toBe(2);
+    expect(result.board).toHaveLength(1);
   });
 
   test("annotations may only point at shapes the student drew, and free notes drop the null target", async () => {

@@ -1543,6 +1543,7 @@
             "enum": [
               "text",
               "arrow",
+              "line",
               "rectangle",
               "ellipse"
             ]
@@ -1562,13 +1563,13 @@
             "type": "number",
             "minimum": -100000,
             "maximum": 100000,
-            "description": "Nonnegative shape width; for arrows, signed horizontal displacement from x. Negative points left."
+            "description": "Nonnegative shape width; for arrows and lines, signed horizontal displacement from x. Negative points left."
           },
           "height": {
             "type": "number",
             "minimum": -100000,
             "maximum": 100000,
-            "description": "Nonnegative shape height; for arrows, signed vertical displacement from y. Negative points up."
+            "description": "Nonnegative shape height; for arrows and lines, signed vertical displacement from y. Negative points up."
           },
           "text": {
             "type": "string",
@@ -1578,7 +1579,7 @@
             "type": "string",
             "pattern": "^[A-Za-z0-9_-]+$",
             "maxLength": 200,
-            "description": "ID of a scene element the student drew. Text and arrows point at it; rectangles and ellipses ring it. The tutor may only target shapes present on the board."
+            "description": "ID of a scene element the student drew. Text, arrows and lines point at it; rectangles and ellipses ring it. The tutor may only target shapes present on the board."
           }
         },
         "required": [
