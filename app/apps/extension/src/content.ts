@@ -1,4 +1,4 @@
-import { classroomCourseRef } from "../../../packages/classroom-api/src/route";
+import { classroomCourseRef, classroomPostRef } from "../../../packages/classroom-api/src/route";
 import type {
   ClassroomPost as Post,
   ClassroomCourse as Course,
@@ -139,17 +139,39 @@ function postElement(post: Post): HTMLElement | null {
     )
       return el;
   }
-  if (post.alternateLink) {
-    const link = [
-      ...document.querySelectorAll<HTMLAnchorElement>("a[href]"),
-    ].find((a) => a.href === post.alternateLink);
-    return (
-      link?.closest<HTMLElement>(
-        'article,[role="listitem"],[data-stream-item-id]',
-      ) || null
-    );
+  // Otherwise find a link to this post. Compare decoded route ids so /u/N/ prefixes,
+  // relative hrefs, query strings and the /details suffix do not matter.
+  for (const a of document.querySelectorAll<HTMLAnchorElement>("a[href]")) {
+    if (a.closest(`[${marker}]`)) continue;
+    if (post.alternateLink && a.href === post.alternateLink)
+      return postContainer(a);
+    const ref = classroomPostRef(a.href);
+    if (ref && ref.postRef === post.id && ref.courseRef === post.courseId)
+      return postContainer(a);
   }
   return null;
+}
+function postContainer(link: HTMLElement): HTMLElement {
+  const preferred = link.closest<HTMLElement>(
+    'article,[role="listitem"],li,[data-stream-item-id]',
+  );
+  if (preferred) return preferred;
+  // Classroom cards are block containers noticeably larger than the inline link inside them.
+  // Walk up to the first card-sized ancestor, never as far as the page or its main column.
+  const stop = new Set<Element | null>([
+    document.body,
+    document.documentElement,
+    document.querySelector("main"),
+    document.querySelector('[role="main"]'),
+  ]);
+  const linkWidth = link.getBoundingClientRect().width;
+  let node: HTMLElement | null = link.parentElement;
+  for (let depth = 0; node && !stop.has(node) && depth < 8; depth++) {
+    const rect = node.getBoundingClientRect();
+    if (rect.height >= 48 && rect.width >= Math.max(240, linkWidth)) return node;
+    node = node.parentElement;
+  }
+  return link.parentElement ?? link;
 }
 function attachControls() {
   for (const post of posts) {
