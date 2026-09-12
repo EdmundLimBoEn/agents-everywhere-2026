@@ -5,3 +5,4 @@
 - [lesson-state-machine.md](./lesson-state-machine.md): lesson phases and how adaptation is enforced on the server.
 - [build-and-run.md](./build-and-run.md): Google Cloud setup, env, build, load the extension, verify live.
 - [hackathon-event.md](./hackathon-event.md): event schedule, submission checklist and window, prizes, judging format.
+- [submission.md](./submission.md): fit against the brief, portal text, two-minute shot list, social post, pitch, judge Q&A, verification on this machine.
