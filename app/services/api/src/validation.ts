@@ -125,8 +125,7 @@ export function board(value: unknown): Board {
       ids.has(key) ||
       !["text", "arrow", "rectangle", "ellipse"].includes(String(r.kind)) ||
       !["x", "y", "width", "height"].every((k) => coordinate(r[k])) ||
-      Number(r.width) < 0 ||
-      Number(r.height) < 0 ||
+      (r.kind !== "arrow" && (Number(r.width) < 0 || Number(r.height) < 0)) ||
       Object.keys(r).some((k) => !["id", "kind", "x", "y", "width", "height", "text", "target"].includes(k))
     )
       throw new HttpError(400, "Invalid board item");

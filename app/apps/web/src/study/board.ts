@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
-import { Excalidraw, CaptureUpdateAction, convertToExcalidrawElements, exportToBlob, restoreElements } from "@excalidraw/excalidraw";
+import { Excalidraw, CaptureUpdateAction, convertToExcalidrawElements, exportToBlob, getCommonBounds, restoreElements } from "@excalidraw/excalidraw";
 import type { ExcalidrawElementSkeleton } from "@excalidraw/excalidraw/data/transform";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI, BinaryFiles } from "@excalidraw/excalidraw/types";
@@ -12,7 +12,7 @@ import "@excalidraw/excalidraw/index.css";
 type Box = { x: number; y: number; width: number; height: number };
 type Point = { x: number; y: number };
 /** Tutor marks share one colour so students can tell them from their own work at a glance. */
-const TUTOR_STYLE = { strokeColor: "#187c55", strokeWidth: 2, roughness: 1, fontFamily: 2 } as const;
+const TUTOR_STYLE = { strokeColor: "#187c55", strokeWidth: 2, roughness: 0, fontFamily: 2, fontSize: 20 } as const;
 const centre = (box: Box): Point => ({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
 const inside = (box: Box, p: Point, gap: number) =>
   p.x >= box.x - gap && p.x <= box.x + box.width + gap && p.y >= box.y - gap && p.y <= box.y + box.height + gap;
@@ -28,12 +28,15 @@ export function annotationElements(item: BoardItem, targets: ReadonlyMap<string,
   const target = item.target ? targets.get(item.target) : undefined;
   const meta = { ...TUTOR_STYLE, customData: { boardItemId: item.id } };
   // Bound labels are separate text elements; tag them too so a replaced mark takes its label with it.
-  const label = (text: string) => (text.trim() ? { label: { text, fontFamily: TUTOR_STYLE.fontFamily, customData: meta.customData } } : {});
+  const label = (text: string, fontSize = 20) => (text.trim() ? { label: { text, fontSize, fontFamily: TUTOR_STYLE.fontFamily, customData: meta.customData } } : {});
   const convert = (skeletons: unknown[]) => convertToExcalidrawElements(skeletons as ExcalidrawElementSkeleton[]);
-  const note = (x: number, y: number, text: string) => convert([{ ...meta, type: "text", x, y, text }]);
+  const note = (x: number, y: number, text: string) => restoreElements(
+    convert([{ ...meta, type: "text", x, y, text, autoResize: false }]).map(element => ({
+      ...element, width: Math.min(element.width, Math.max(160, Math.min(item.width || 260, 360))),
+    })), null, { repairBindings: true, refreshDimensions: true });
   const arrow = (from: Point, to: Point, text = "") => convert([{
     ...meta, type: "arrow", x: from.x, y: from.y, endArrowhead: "arrow",
-    points: [[0, 0], [to.x - from.x, to.y - from.y]], ...label(text),
+    points: [[0, 0], [to.x - from.x, to.y - from.y]], ...label(text, 16),
   }]);
   switch (item.kind) {
     case "text": {
@@ -48,9 +51,13 @@ export function annotationElements(item: BoardItem, targets: ReadonlyMap<string,
     }
     default: {
       if (!target)
-        return convert([{ ...meta, type: item.kind, x: item.x, y: item.y, width: item.width, height: item.height, ...label(item.text) }]);
+        return convert([{ ...meta, type: item.kind, x: item.x, y: item.y,
+          width: Math.max(item.width, item.text.trim() ? 160 : 40), height: Math.max(item.height, item.text.trim() ? 80 : 40),
+          backgroundColor: "#e9f5ee", fillStyle: "solid", ...label(item.text) }]);
       const pad = 14, box = { x: target.x - pad, y: target.y - pad, width: target.width + 2 * pad, height: target.height + 2 * pad };
-      return [...convert([{ ...meta, type: item.kind, ...box, strokeStyle: "dashed" }]), ...(item.text.trim() ? note(box.x, box.y - 32, item.text) : [])];
+      const text = item.text.trim() ? note(box.x, box.y - 32, item.text) : [];
+      if (text[0]) text[0] = { ...text[0], y: box.y - text[0].height - 12 };
+      return [...convert([{ ...meta, type: item.kind, ...box, strokeStyle: "dashed" }]), ...text];
     }
   }
 }
@@ -79,38 +86,60 @@ export function mountBoard(host: HTMLElement, initial: Board, save: (board: Boar
   });
   const reveal = animate && groups.length > 0;
   const elements = restoreElements([...existing, ...(reveal ? [] : groups.flat()), ...strokes] as ExcalidrawElement[], null);
-  let animating = reveal, disposed = false, deferred = false, settle: (() => void) | undefined;
+  let animating = reveal, disposed = false, revealed = 0, settle: (() => void) | undefined;
+  let ready!: () => void;
+  const initialized = new Promise<void>(resolve => { ready = resolve; });
   const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
   /** Draw the tutor's new items one by one and follow them with the viewport, like a teacher at the board. */
   async function draw(instance: ExcalidrawImperativeAPI) {
-    const drawn: ExcalidrawElement[] = [];
-    for (const group of groups) {
+    await initialized;
+    // Frame the whole diagram once; do not zoom and pan after every stroke.
+    fit([...elements, ...groups.flat()]);
+    while (revealed < groups.length) {
       await wait(REVEAL_DELAY_MS);
-      if (disposed) return;
-      drawn.push(...group);
+      if (disposed || !animating) return;
+      const group = groups[revealed++];
       instance.updateScene({ captureUpdate: CaptureUpdateAction.NEVER, elements: [...instance.getSceneElementsIncludingDeleted(), ...group] });
-      instance.scrollToContent([...existing.filter(e => e.isDeleted !== true), ...drawn] as ExcalidrawElement[], { fitToContent: true, animate: true, duration: 300 });
     }
     // Excalidraw reports the last stroke on a later render; wait for it so the save holds the whole drawing.
     await new Promise<void>(resolve => { settle = resolve; setTimeout(resolve, 400); });
     settle = undefined;
+    if (disposed || !animating) return;
     animating = false;
-    // One save once the drawing is complete, covering anything the student changed meanwhile.
-    if (deferred && !disposed) void persist();
+    capture();
+    void persist();
   }
   const bar = document.createElement("div");
   bar.className = "study-tools";
   const status = document.createElement("span");
   status.setAttribute("role", "status");
   let signature = "", api: ExcalidrawImperativeAPI | undefined, generation = 0;
+  function fit(content: readonly ExcalidrawElement[] = api?.getSceneElements() ?? []) {
+    const visible = content.filter(element => !element.isDeleted);
+    if (visible.length) api?.scrollToContent(visible, { fitToViewport: true, viewportZoomFactor: 0.8, maxZoom: 1, animate: false });
+  }
+  function capture() {
+    if (!api) return;
+    board.scene = { elements: [...api.getSceneElementsIncludingDeleted()], files: { ...api.getFiles() }, sourceItems: board.items };
+    signature = JSON.stringify(board.scene);
+  }
+  function finishDrawing() {
+    if (!api || !animating) return;
+    api.updateScene({ captureUpdate: CaptureUpdateAction.NEVER,
+      elements: [...api.getSceneElementsIncludingDeleted(), ...groups.slice(revealed).flat()] });
+    revealed = groups.length;
+    animating = false;
+    capture();
+    void persist();
+  }
   async function persist() {
     const current = ++generation;
     status.textContent = "Saving…";
     try {
       await save(structuredClone(board));
       if (current === generation) status.textContent = "Saved";
-    } catch {
-      if (current === generation) status.textContent = "Not saved. Retry save.";
+    } catch (error) {
+      if (current === generation) status.textContent = `Not saved. ${error instanceof Error ? error.message : "Retry save."}`;
     }
   }
   const input = document.createElement("input");
@@ -121,16 +150,24 @@ export function mountBoard(host: HTMLElement, initial: Board, save: (board: Boar
   add.textContent = "Add text";
   add.onclick = () => {
     if (!input.value.trim() || !api) return;
-    api.updateScene({ captureUpdate: CaptureUpdateAction.IMMEDIATELY, elements: [...api.getSceneElements(), ...convertToExcalidrawElements([
-      { type: "text", fontFamily: 2, x: 30, y: 35 + api.getSceneElements().length * 40, text: input.value.trim() },
-    ])] });
+    const { scrollX, scrollY, width, height, zoom } = api.getAppState();
+    const existing = api.getSceneElements();
+    const bottom = existing.length ? getCommonBounds(existing)[3] + 24 : -Infinity;
+    const text = convertToExcalidrawElements([{ type: "text", fontFamily: 2,
+      x: -scrollX + width / zoom.value / 3, y: Math.max(bottom, -scrollY + height / zoom.value / 2), text: input.value.trim() }]);
+    api.updateScene({ captureUpdate: CaptureUpdateAction.IMMEDIATELY, elements: [...api.getSceneElementsIncludingDeleted(), ...text] });
+    api.scrollToContent(text, { animate: false });
     input.value = "";
   };
   const retry = document.createElement("button");
   retry.type = "button";
   retry.textContent = "Save";
-  retry.onclick = () => void persist();
-  bar.append(input, add, retry, status);
+  retry.onclick = () => { if (animating) finishDrawing(); else { capture(); void persist(); } };
+  const fitButton = document.createElement("button");
+  fitButton.type = "button";
+  fitButton.textContent = "Fit drawing";
+  fitButton.onclick = () => fit();
+  bar.append(input, add, retry, fitButton, status);
   const canvas = document.createElement("div");
   canvas.className = "study-excalidraw";
   canvas.setAttribute("aria-label", "Lesson whiteboard — Excalidraw");
@@ -170,20 +207,22 @@ export function mountBoard(host: HTMLElement, initial: Board, save: (board: Boar
     validateEmbeddable: false,
     UIOptions: { canvasActions: { loadScene: true, export: { saveFileToDisk: true } } },
     onChange: (elements, _state, files) => {
+      if (disposed) return;
       const scene = { elements: elements.map(element => ({ ...element })), files: { ...files }, sourceItems: board.items };
       const next = JSON.stringify(scene);
       if (next === signature) return;
       const first = !signature;
       signature = next;
       board.scene = scene;
+      ready();
       settle?.();
-      if (first) return;
-      if (animating) deferred = true;
-      else void persist();
+      if (first && !animating) fit();
+      if (!animating && (!first || JSON.stringify(initial.scene) !== next && (elements.length > 0 || !!initial.scene))) void persist();
     },
   }));
   /** JPEG data URL of the current drawing for the tutor, or "" when the board is empty. */
   async function snapshot(): Promise<string> {
+    await initialized;
     const elements = api?.getSceneElements() ?? [];
     if (!api || !elements.length) return "";
     const blob = await exportToBlob({ elements, files: api.getFiles(), mimeType: "image/jpeg", quality: 0.85, maxWidthOrHeight: 1400, exportPadding: 24,
@@ -195,5 +234,6 @@ export function mountBoard(host: HTMLElement, initial: Board, save: (board: Boar
       reader.readAsDataURL(blob);
     });
   }
-  return { dispose: () => { disposed = true; root.unmount(); }, snapshot };
+  return { dispose: () => { finishDrawing(); disposed = true; ready(); root.unmount(); },
+    flush: async () => { await initialized; finishDrawing(); }, snapshot };
 }

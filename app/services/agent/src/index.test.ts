@@ -405,6 +405,22 @@ describe("whiteboard annotations", () => {
     }
   });
 
+  test("diagrams support return arrows and keep identities when the tutor reorders parts", async () => {
+    const left = { id: "tutor-4", kind: "arrow" as const, x: 300, y: 200, width: -200, height: -100, text: "returns" };
+    const node = { id: "tutor-1", kind: "rectangle" as const, x: 0, y: 0, width: 180, height: 80, text: "Start" };
+    const current: Lesson = { ...lesson, board: { items: [node, left], strokes: [] } };
+    const result = await generateReply(current, profile, { ...input, whiteboard: true }, config({ ...reply, board: [
+      { ...left, target: null }, { ...node, target: null },
+      { ...node, id: "new", text: "Next", x: 320, target: null },
+    ] }, body => {
+      expect(body.text.format.schema.properties.board.items.properties.width.minimum).toBeLessThan(0);
+      expect(body.text.format.schema.properties.board.items.properties.height.minimum).toBeLessThan(0);
+    }));
+    const next = applyReply(current, input, result);
+    expect(next.board.items.slice(0, 2)).toEqual([left, node]);
+    expect(new Set(next.board.items.map(item => item.id)).size).toBe(3);
+  });
+
   test("annotations may only point at shapes the student drew, and free notes drop the null target", async () => {
     for (const target of ["gone", "old-mark", "nope"])
       await expect(

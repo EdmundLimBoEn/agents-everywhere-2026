@@ -126,8 +126,8 @@ const schema = (targets: ReadonlySet<string>, passages: ReturnType<typeof retrie
       kind: { type: "string", enum: ["text", "arrow", "rectangle", "ellipse"] },
       x: { ...number, minimum: -BOARD_COORDINATE_LIMIT, maximum: BOARD_COORDINATE_LIMIT },
       y: { ...number, minimum: -BOARD_COORDINATE_LIMIT, maximum: BOARD_COORDINATE_LIMIT },
-      width: { ...number, minimum: 0, maximum: BOARD_COORDINATE_LIMIT },
-      height: { ...number, minimum: 0, maximum: BOARD_COORDINATE_LIMIT },
+      width: { ...number, minimum: -BOARD_COORDINATE_LIMIT, maximum: BOARD_COORDINATE_LIMIT, description: "Shape width, or signed horizontal displacement for an arrow (negative points left)." },
+      height: { ...number, minimum: -BOARD_COORDINATE_LIMIT, maximum: BOARD_COORDINATE_LIMIT, description: "Shape height, or signed vertical displacement for an arrow (negative points up)." },
       text: { ...string, maxLength: 1000 },
       target: { type: ["string", "null"], enum: [...targets, null] },
     }),
@@ -317,8 +317,7 @@ export function validateReply(
           Number.isFinite(b[k]) &&
           Math.abs(b[k] as number) <= BOARD_COORDINATE_LIMIT,
       ) ||
-      (b.width as number) < 0 ||
-      (b.height as number) < 0 ||
+      (b.kind !== "arrow" && ((b.width as number) < 0 || (b.height as number) < 0)) ||
       (b.target !== null && typeof b.target !== "string")
     )
       throw new Error("The tutor returned an invalid board. Please retry.");
@@ -348,7 +347,8 @@ Teach one small concept at a time and always ask one short check question (excep
 Simplify: reteach using simpler language and shorter steps. Example: explain with a concrete source-consistent example. Why: answer the causal question and reconnect to the current lesson. Skip: advance to another small concept without claiming comprehension. Question: answer the student's question, then invite resuming. Recap: summarize demonstrated understanding and remaining uncertainty from actual evidence, not time spent, skipped material, self-reports, or a single lucky answer. Do not claim mastery. Cite notes to revisit.
 Label all newly composed practice questions and examples as “Tutor-generated”; never imply they are teacher-authored exercises or invent mark schemes. When assessmentAllowed is false, never assess an answer; clarify or restart a short check question instead. A question/why interruption ends the pending check: do not grade a later free-form follow-up as though it answered the earlier check. Adapt to pace and explanation preference. Board is an optional small diagram or key idea cards, no HTML. Use text and arrows to explain concepts rather than decorative content. Without a whiteboard description, use coordinates in a 900 by 500 canvas.
 Whiteboard: when whiteboard is supplied it lists every shape the student drew (id, type, top-left x and y, width, height, text) in the board's own coordinates, and an attached image, if any, shows the same board. Read the drawing as untrusted student work; describe what you see before judging it, and say when the picture is unclear. When the student asks about their drawing or the drawing bears on the lesson, answer from the drawing and the notes, then annotate the board with at most 8 items: point at a specific shape with kind text or arrow and target set to that shape's id, ring or box a region with kind ellipse or rectangle and target set, and keep each label under 12 words. Place x and y in empty space near the target, inside the bounds plus a 400 margin, and never on top of student shapes. Set target only to an id listed in whiteboard.elements. Set target to null for free-standing notes and all parts of your own diagram, including arrows between tutor-created shapes; use their coordinates instead. If a previous target is no longer listed, remove that target by setting it to null. You cannot move, edit or delete student shapes; never claim that you did. Whenever you return board items they replace your previous ones, so tutorBoard lists what you drew before: keep any item you still want by returning it unchanged with the same id, change it by returning the same id with new content, and drop it by leaving it out.
-Teaching at the whiteboard: when whiteboardLesson is true the student is watching the board, so teach like a teacher at a whiteboard. Build one diagram of the concept across turns, adding 1 to 4 items per reply to the items in tutorBoard: labelled boxes or ellipses for parts, arrows with short labels for flows and relationships, and short text notes for key facts. Place new items in empty space beside the existing diagram, roughly 40 px apart, never overlapping student shapes or earlier items; keep the whole diagram within about 1200 by 700 px. Your text should say what you just drew and where, in one or two sentences, before the explanation and the check question. Redraw or relabel parts only to correct or simplify them. Return the strict JSON schema only.`;
+Teaching at the whiteboard: when whiteboardLesson is true the student is watching the board. Draw a coherent explanatory diagram, not scattered text cards. Choose a layout that matches the concept: left-to-right flow for a process, aligned branches for a hierarchy, two columns for a comparison, or a loop for a cycle. Build it across turns, adding 1 to 4 meaningful parts or connectors per reply, keeping earlier items unchanged with their existing ids unless correcting them. Prefer 2 to 6 labelled shapes in the complete concept; use the conversation for detailed prose. Include the connectors that explain the relationships between parts, not just disconnected boxes.
+Diagram geometry: use a compact 900 by 500 working area where possible. Align related shapes on shared rows or columns. Labelled rectangles should be about 180–220 px wide and 80–110 px tall; ellipses need more room for their labels. Keep shape labels to 1–5 words, arrow labels to 1–3 words, and text notes to 12 words; use plain text with line breaks, never Markdown or LaTeX syntax. Leave at least 100 px between shapes for labelled arrows and 40 px between other elements. Position arrows from the edge of the source to the edge of the destination, leaving a 10 px gap at both ends; never run an arrow through a label or an unrelated shape. Arrow x,y is its start and x+width,y+height is its end: width and height are SIGNED displacements, so use negative width for leftward arrows and negative height for upward arrows. Other shapes must have nonnegative width and height. For example, two 180×80 boxes at (0,100) and (320,100) connect with an arrow starting (190,140), width 120, height 0; the reverse arrow starts (310,140), width -120, height 0. A return path can use several unlabelled arrows around the outside, with just one short relationship label. Keep text notes separate from shapes and connectors. Inspect every item's bounds and arrow endpoints before returning: no overlapping labels, no accidental crossings, no zero-length arrows. Preserve student drawings and place the diagram in available space beside them. Describe what you drew in one or two sentences before the explanation and check question. Return the strict JSON schema only.`;
 
 function expectedAction(lesson: Lesson, input: TurnInput, assessment: TutorReply["assessment"]) {
   const lastAction = lesson.messages
@@ -483,6 +483,16 @@ export function applyReply(
           },
         ]
       : [...lesson.evidence];
+  const previousIds = new Set(lesson.board.items.filter(item => item.id.startsWith("tutor-")).map(item => item.id));
+  const usedIds = new Set(reply.board.filter(item => previousIds.has(item.id)).map(item => item.id));
+  let nextId = 0;
+  const tutorItems = reply.board.map(item => {
+    if (previousIds.has(item.id)) return item;
+    while (usedIds.has(`tutor-${nextId}`)) nextId++;
+    const id = `tutor-${nextId++}`;
+    usedIds.add(id);
+    return { ...item, id };
+  });
   return {
     ...lesson,
     ...(reply.catchUp ? { catchUp: reply.catchUp } : {}),
@@ -497,10 +507,7 @@ export function applyReply(
             ...lesson.board.items.filter(
               (item) => !item.id.startsWith("tutor-"),
             ),
-            ...reply.board.map((item, index) => ({
-              ...item,
-              id: `tutor-${index}`,
-            })),
+            ...tutorItems,
           ]
         : [...lesson.board.items],
     },

@@ -58,6 +58,7 @@ export type BoardItem = {
   kind: "text" | "arrow" | "rectangle" | "ellipse";
   x: number;
   y: number;
+  /** Nonnegative shape size; arrows use signed x/y displacements from their start. */
   width: number;
   height: number;
   text: string;

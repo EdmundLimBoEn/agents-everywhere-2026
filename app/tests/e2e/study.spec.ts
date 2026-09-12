@@ -310,6 +310,8 @@ test("whiteboard combines queued edits before teaching without losing the latest
   expect(saved).toHaveLength(2);
   expect(saved.at(-1)!.body.scene.elements.filter((e: { type: string }) => e.type === "text").map((e: { text: string }) => e.text))
     .toEqual(["First idea", "Second idea", "Latest idea"]);
+  const notes = saved.at(-1)!.body.scene.elements;
+  for (let i = 1; i < notes.length; i++) expect(notes[i].y).toBeGreaterThan(notes[i - 1].y + notes[i - 1].height);
 });
 
 test("teaching waits for a pending whiteboard save and preserves failed draft on tab changes", async ({
@@ -615,6 +617,13 @@ test("Excalidraw draws native shapes, restores scenes and loads local fonts", as
   await page.mouse.click(textBounds.x + 100, textBounds.y + 150);
   await page.locator(".excalidraw-wysiwyg").fill("Native text");
   await page.keyboard.press("Escape");
+  const liveText = () => requests.filter(r => r.path.endsWith("/board")).at(-1)?.body.scene.elements
+    .filter((e: { isDeleted?: boolean; text?: string }) => !e.isDeleted && e.text === "Native text").length;
+  await expect.poll(liveText).toBe(1);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect.poll(liveText).toBe(0);
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  await expect.poll(liveText).toBe(1);
   await expect.poll(() => fonts.length).toBeGreaterThan(0);
   expect(fonts.every(url => new URL(url).origin === new URL(page.url()).origin)).toBe(true);
   expect(errors).toEqual([]);
@@ -625,6 +634,81 @@ test("Excalidraw draws native shapes, restores scenes and loads local fonts", as
   await expect(page.locator(".excalidraw canvas").first()).toBeVisible();
   await expect.poll(async () => (await canvas.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(350);
   await page.screenshot({ path: testInfo.outputPath("excalidraw-mobile.png"), fullPage: true });
+});
+
+test("whiteboard saves complete tutor diagrams with reduced motion", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const requests = await mockClassroom(page);
+  await chooseMaterials(page);
+  await page.getByRole("button", { name: "Teach me at the whiteboard →", exact: true }).click();
+  await expect(page.getByText("What do plants get from sunlight?", { exact: true })).toBeVisible();
+  await expect.poll(() => requests.filter(r => r.path.endsWith("/board")).at(-1)?.body.scene.elements.length).toBe(5);
+});
+
+test("whiteboard diagrams have readable bound labels and arrows in every direction", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  const requests = await mockClassroom(page);
+  const lesson = lessonFixture();
+  lesson.board.items = [
+    { id: "title", kind: "text", x: 0, y: -75, width: 360, height: 0, text: "The water cycle" },
+    { id: "vapour", kind: "rectangle", x: 0, y: 0, width: 180, height: 90, text: "Water vapour" },
+    { id: "clouds", kind: "rectangle", x: 320, y: 0, width: 180, height: 90, text: "Clouds" },
+    { id: "rain", kind: "rectangle", x: 320, y: 230, width: 180, height: 90, text: "Rain" },
+    { id: "surface", kind: "rectangle", x: 0, y: 230, width: 180, height: 90, text: "Surface water" },
+    { id: "condense", kind: "arrow", x: 190, y: 45, width: 120, height: 0, text: "condenses" },
+    { id: "fall", kind: "arrow", x: 410, y: 100, width: 0, height: 120, text: "falls" },
+    { id: "collect", kind: "arrow", x: 310, y: 275, width: -120, height: 0, text: "collects" },
+    { id: "evaporate", kind: "arrow", x: 90, y: 220, width: 0, height: -120, text: "evaporates" },
+    { id: "note", kind: "text", x: 0, y: 355, width: 300, height: 0, text: "The same water keeps moving through these four stages." },
+  ];
+  await page.route("**/api/lessons", route => route.fulfill({ json: lesson }));
+  await chooseMaterials(page);
+  await page.getByRole("button", { name: "Whiteboard", exact: true }).click();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  const scene = requests.filter(r => r.path.endsWith("/board")).at(-1)!.body.scene;
+  const elements = scene.elements as Array<{ type: string; id: string; x: number; y: number; width: number; height: number; roughness: number; fontSize?: number; containerId?: string; text?: string; points?: number[][]; customData?: { boardItemId: string } }>;
+  for (const label of elements.filter(e => e.type === "text" && e.containerId)) {
+    const container = elements.find(e => e.id === label.containerId)!;
+    expect(label.fontSize).toBe(container.type === "arrow" ? 16 : 20);
+    if (container.type !== "arrow") {
+      expect(label.x).toBeGreaterThanOrEqual(container.x);
+      expect(label.y).toBeGreaterThanOrEqual(container.y);
+      expect(label.x + label.width).toBeLessThanOrEqual(container.x + container.width);
+      expect(label.y + label.height).toBeLessThanOrEqual(container.y + container.height);
+    }
+  }
+  expect(elements.filter(e => e.type !== "text").every(e => e.roughness === 0)).toBe(true);
+  const arrow = (id: string) => elements.find(e => e.type === "arrow" && e.customData?.boardItemId === id)!.points!;
+  expect(arrow("collect").at(-1)![0]).toBeLessThan(arrow("collect")[0][0]);
+  expect(arrow("evaporate").at(-1)![1]).toBeLessThan(arrow("evaporate")[0][1]);
+  expect(elements.find(e => e.customData?.boardItemId === "note")!.width).toBeLessThanOrEqual(300);
+  await page.getByRole("button", { name: "Fit drawing", exact: true }).click();
+  await page.screenshot({ path: testInfo.outputPath("whiteboard-quality.png"), fullPage: true });
+  expect(errors).toEqual([]);
+});
+
+test("whiteboard finishes an interrupted reveal and keeps student edits when changing tabs", async ({ page }) => {
+  const requests = await mockClassroom(page);
+  const lesson = lessonFixture();
+  lesson.board.items = Array.from({ length: 12 }, (_, i) => ({
+    id: `tutor-${i}`, kind: "text", x: i * 120, y: 0, width: 0, height: 0, text: `Step ${i + 1}`,
+  }));
+  await page.route("**/api/lessons", route => route.fulfill({ json: lesson }));
+  await chooseMaterials(page);
+  await page.getByRole("button", { name: "Whiteboard", exact: true }).click();
+  await expect(page.locator(".excalidraw canvas").first()).toBeVisible();
+  await page.getByRole("textbox", { name: "Whiteboard text" }).fill("Keep my question");
+  await page.getByRole("button", { name: "Add text", exact: true }).click();
+  await page.getByRole("button", { name: "Light notes", exact: true }).click();
+  await page.getByRole("button", { name: "Whiteboard", exact: true }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  const saved = requests.filter(r => r.path.endsWith("/board")).at(-1)!.body.scene.elements;
+  expect(saved.filter((e: { customData?: { boardItemId?: string } }) => e.customData?.boardItemId)).toHaveLength(12);
+  expect(saved.some((e: { text?: string }) => e.text === "Keep my question")).toBe(true);
 });
 
 

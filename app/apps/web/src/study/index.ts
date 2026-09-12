@@ -109,11 +109,11 @@ export function mountStudy(
   }
   let voiceActive = false;
   root.addEventListener("study:flush-board", (event) => {
-    const pending = lesson ? boards.get(lesson.id)?.pending : undefined;
-    if (pending)
+    const id = lesson?.id, view = boardView;
+    if (id)
       (
         event as CustomEvent<{ waitUntil: (promise: Promise<void>) => void }>
-      ).detail.waitUntil(pending);
+      ).detail.waitUntil((async () => { await view?.flush(); await boards.get(id)?.pending; })());
   });
   root.addEventListener("study:voice-active", (event) => {
     voiceActive = Boolean((event as CustomEvent<boolean>).detail);
@@ -574,6 +574,7 @@ export function mountStudy(
           : STAGES[intent];
     await run(async () => {
       try {
+        await view?.flush();
         const board = boards.get(lessonId);
         if (board) {
           await board.pending;

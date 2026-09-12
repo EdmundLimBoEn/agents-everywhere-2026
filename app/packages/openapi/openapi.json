@@ -1560,13 +1560,15 @@
           },
           "width": {
             "type": "number",
-            "minimum": 0,
-            "maximum": 100000
+            "minimum": -100000,
+            "maximum": 100000,
+            "description": "Nonnegative shape width; for arrows, signed horizontal displacement from x. Negative points left."
           },
           "height": {
             "type": "number",
-            "minimum": 0,
-            "maximum": 100000
+            "minimum": -100000,
+            "maximum": 100000,
+            "description": "Nonnegative shape height; for arrows, signed vertical displacement from y. Negative points up."
           },
           "text": {
             "type": "string",
