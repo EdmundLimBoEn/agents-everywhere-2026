@@ -76,9 +76,25 @@ The board supports diagram items and drawing. Learner settings and assessment ev
 
 The standalone page at `http://localhost:8787` shows the study UI but does not replace extension Google sign-in. The product does not seed fake Classroom posts or sample notes when Google is unavailable.
 
+## Work on the assignment in front of you
+
+Choose **Work on this assignment** on a Classroom assignment or its card in the Catch Up dashboard. The workspace opens the assignment with relevant class materials. It prepares a source-linked goal and requirements, suggests a next action, and keeps the source reader beside the student's work. Other selected assignments are not merged into this assignment's requirements.
+
+1. Inspect the requirements and open their citations to see the teacher's instructions or rubric. Open suggested notes to read the material behind the guidance.
+2. Write your own response in the draft editor and save it. The draft belongs to this saved lesson and resumes with it; saving does not call OpenAI or edit a Google document.
+3. Describe where you are stuck and request help, or leave the question blank for a contextual next hint. The response uses the selected class sources to suggest a hint and a next step.
+4. Request a review of the draft. Each requirement receives a coverage status and feedback. Draft evidence is quoted from your actual response, while source citations point to the teacher's material. Coverage feedback is not a predicted grade. Saving a changed draft clears the previous review and hint so old feedback is not presented as feedback on new work; saving unchanged text retains them.
+5. Revise, then return to the original assignment in Classroom to submit it yourself. Afterclass does not upload drafts, mark assignments complete, or submit on your behalf.
+
+The server reads an accessible native Classroom rubric using the existing `classroom.coursework.me.readonly` scope; no new scopes are requested. If a rubric is missing or denied, the workspace uses only supported assignment instructions and reports the limitation instead of inventing teacher criteria. An expired Google authorization requires reconnecting. Materials must be accessible to the signed-in student; production never substitutes synthetic notes or assignments.
+
+If the teacher changes assignment instructions or rubric content, Afterclass preserves your draft and clears derived feedback. Choose **Refresh requirements** before requesting another hint or review. Saving your draft remains available while requirements are stale.
+
+The workspace uses `POST /api/lessons/{lessonId}/assignment`, returning the updated `Lesson` with optional `assignment` state. Every action includes `revision` and `requestId`. `prepare` requires an `assignmentId` identifying a selected `courseWork` post; `save` requires `draft`. Drafts are limited to 20,000 characters and blocker questions to 2,000. Preparation, help, and review use the configured teaching model; draft saves are provider-free. Retry an uncertain request with its unchanged payload and request ID; a stale revision requires reloading before making a new change. Preserve unsaved text before reloading.
+
 ## Data and recovery
 
-Lesson documents, conversations, board state, learner preferences, assessment evidence, and idempotent turn snapshots are stored locally in SQLite. The server rechecks Google access and refreshes materials when resuming and teaching. Deleting a lesson removes its turn history and associated profile evidence. Forgetting an evidence item removes it from the profile, lessons, and cached turn snapshots. Deleting the profile deletes all that user's saved lessons and profile. These actions do not delete Google Classroom files. Disconnect Google in extension settings to remove the extension's cached authorization; disconnecting does not delete stored study data. SQLite deletion is logical deletion, not a guarantee of forensic erasure from backups or disk.
+Lesson documents, conversations, board state, assignment requirements, saved drafts and reviews, learner preferences, assessment evidence, and idempotent request snapshots are stored locally in SQLite. The server rechecks Google access and refreshes materials when resuming and teaching. Deleting a lesson removes its turn history and associated profile evidence. Forgetting an evidence item removes it from the profile, lessons, and cached turn snapshots. Deleting the profile deletes all that user's saved lessons and profile. These actions do not delete Google Classroom files. Disconnect Google in extension settings to remove the extension's cached authorization; disconnecting does not delete stored study data. SQLite deletion is logical deletion, not a guarantee of forensic erasure from backups or disk.
 
 Missing Google setup prevents protected API access with a setup error. Missing teaching credentials lets materials load but prevents teaching. Missing voice configuration disables live voice. A denied document is reported individually; an expired authorization requires reconnecting. No readable sources means teaching cannot start. A stale lesson revision or concurrent turn returns HTTP 409: reload the lesson before a new turn, and preserve the same request ID and payload when retrying a failed submission.
 
@@ -92,6 +108,8 @@ bun run check
 bunx playwright install chromium
 bun run test:e2e
 ```
+
+If another preview is already using port 8787, run `PORT=8791 bun run test:e2e` to use a separate test server. Playwright uses `PORT` for both its server and browser base URL.
 
 `check` runs TypeScript checks, service tests, and builds the UI and extension. Browser tests exercise the UI and extension integration with mocked services; they do not prove live school OAuth, real Google documents, OpenAI model availability, microphone hardware, or school network WebRTC connectivity. Verify those with an authorized account using the flow above before a live demo. Current source tests and their results, rather than this guide, are the authority for what passed on a particular machine.
 
@@ -144,3 +162,13 @@ Enable the Drive and Docs APIs plus Classroom API. Rebuild/reload the extension 
 References: [OpenAI file inputs](https://developers.openai.com/api/docs/guides/file-inputs), [Google export formats](https://developers.google.com/workspace/drive/api/guides/ref-export-formats), [Classroom create](https://developers.google.com/workspace/classroom/reference/rest/v1/courses.courseWork/create), [Classroom patch fields](https://developers.google.com/workspace/classroom/reference/rest/v1/courses.courseWork/patch).
 
 For isolated browser verification while another checkout serves port 8787, run `E2E_PORT=8791 bun run test:e2e`. Browser service mocks validate interactions and payloads; they do not establish live OAuth write access.
+## Assignment verification
+
+On 12 September 2026, `bun run check` passed TypeScript, 65 service/boundary tests, and the web/extension build. `PORT=8793 CI=1 bun run test:e2e` passed all 14 Chromium tests, including direct assignment launch, cited help, saved/resumed drafts, identical-request retry, stale-revision recovery, changed requirements, and desktop/mobile layouts. Browser classroom data is synthetic. The live OpenAI prepare → hint → save → review test passed with synthetic materials; school-account OAuth and live Classroom rubric access remain unverified.
+
+```sh
+cd app
+RUN_LIVE_ASSIGNMENT=1 bun test services/agent/src/assignment.live.test.ts
+```
+
+This opt-in test uses the configured OpenAI account. Citation validation rejects altered quotes rather than displaying unsupported evidence; a rejected model response can be retried without losing the draft.

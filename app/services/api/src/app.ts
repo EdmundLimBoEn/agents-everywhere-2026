@@ -1,4 +1,5 @@
 import { fileReader } from "../../agent/src/files";
+import { assignmentSourcesChanged, generateAssignment } from "../../agent/src/assignment";
 import { generateCrewReply } from "../../agent/src/crew";
 import type {
   Lesson,
@@ -25,6 +26,7 @@ type Dependencies = {
   google?: (token: string) => GoogleClassroom;
   tutor?: typeof generateReply;
   voice?: typeof createVoiceSession;
+  assignment?: typeof generateAssignment;
 };
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -66,6 +68,7 @@ export function createApp({
   google,
   tutor = generateCrewReply,
   voice = createVoiceSession,
+  assignment = generateAssignment,
 }: Dependencies) {
   const reader = config.apiKey && config.model ? fileReader({ apiKey: config.apiKey, model: config.model }) : undefined;
   google ??= (token) => new GoogleClassroom(token, fetch, reader);
@@ -208,7 +211,7 @@ export function createApp({
         const assignmentId = parts[4] ? v.id(parts[4]) : undefined;
         if (method === "GET" && assignmentId) return json(await client.assignment(courseId, assignmentId));
         if ((method === "POST" && !assignmentId) || (method === "PATCH" && assignmentId))
-          return json(await client.saveAssignment(courseId, v.assignment(await body(request), !!assignmentId), assignmentId), assignmentId ? 200 : 201);
+          return json(await client.saveAssignment(courseId, v.assignmentWrite(await body(request), !!assignmentId), assignmentId), assignmentId ? 200 : 201);
       }
       if (parts[3] === "posts" && parts.length === 4 && method === "GET")
         return json(await client.posts(courseId));
@@ -328,6 +331,9 @@ export function createApp({
         if (!lesson)
           throw new v.HttpError(404, "Lesson not found", "not_found");
         const loaded = await client.loadSources(lesson.courseId, lesson.posts);
+        if (assignmentSourcesChanged(lesson, loaded.sources)) {
+          lesson = { ...lesson, assignment: { ...lesson.assignment!, requirementsStale: true, review: null, help: null, blocker: null, nextAction: "Assignment instructions changed. Refresh requirements to continue." } };
+        }
         lesson = {
           ...lesson!,
           classroomPosts: loaded.posts,
@@ -400,6 +406,38 @@ export function createApp({
             }),
           );
         });
+      if (parts.length === 4 && parts[3] === "assignment" && method === "POST") {
+        const input = v.assignment(await body(request));
+        const fingerprint = JSON.stringify({ endpoint: "assignment", ...input });
+        return limited(key, async () => {
+          await refresh();
+          const previous = store.turn(user.id, lessonId, input.requestId);
+          if (previous) {
+            if (previous.fingerprint !== fingerprint)
+              throw new v.HttpError(409, "Request ID was already used for another action.");
+            return json(lesson);
+          }
+          if (lesson!.revision !== input.revision)
+            throw new v.HttpError(409, "This lesson changed in another tab. Reload before continuing.", "stale_lesson");
+          const assignmentId = input.action === "prepare" ? input.assignmentId : lesson!.assignment?.assignmentId;
+          if (!assignmentId || !lesson!.posts.some((p) => p.id === assignmentId && p.type === "courseWork") || !lesson!.classroomPosts?.some((p) => p.id === assignmentId && p.type === "courseWork"))
+            throw new v.HttpError(422, "Select an available Classroom assignment first.");
+          if (input.assignmentId !== undefined && input.assignmentId !== assignmentId)
+            throw new v.HttpError(400, "This workspace belongs to a different assignment.");
+          if (input.action !== "prepare" && !lesson!.assignment)
+            throw new v.HttpError(422, "Prepare this assignment first.");
+          if ((input.action === "help" || input.action === "review") && lesson!.assignment?.requirementsStale)
+            throw new v.HttpError(409, "Assignment instructions changed. Refresh requirements to continue.", "stale_assignment");
+          if (input.action === "review" && !(input.draft ?? lesson!.assignment?.draft)?.trim())
+            throw new v.HttpError(422, "Write a draft before asking for feedback.");
+          if (input.action !== "save" && (!config.apiKey || !config.model))
+            throw new v.HttpError(503, "Configure OPENAI_API_KEY and OPENAI_MODEL to use the assignment assistant.", "setup_required");
+          const state = await assignment(lesson!, input, { apiKey: config.apiKey, model: config.model });
+          const next: Lesson = { ...lesson!, assignment: state, updatedAt: state.updatedAt, revision: lesson!.revision + 1 };
+          store.commitTurn(user.id, next, input.requestId, fingerprint, store.profile(user.id, user.name));
+          return json(next);
+        });
+      }
       if (parts.length === 4 && parts[3] === "turn" && method === "POST") {
         const input = v.turn(await body(request));
         const fingerprint = JSON.stringify(input);

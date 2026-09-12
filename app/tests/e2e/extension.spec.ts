@@ -119,3 +119,26 @@ test("Classroom content controls survive DOM updates and restore page focus", as
   ).toBeVisible();
   await expect(page.locator('[data-classroom-study="post"]')).toHaveCount(0);
 });
+
+test("opening a Classroom assignment launches its workspace without selecting posts", async ({ page }) => {
+  await page.route("https://classroom.google.com/**", route => route.fulfill({ contentType: "text/html", body: "<h1>Explain photosynthesis</h1>" }));
+  await page.goto("https://classroom.google.com/u/0/c/Y291cnNlLTE=/a/YXNzaWdubWVudC0x/details");
+  await page.evaluate(() => {
+    const attach = Element.prototype.attachShadow;
+    Element.prototype.attachShadow = function (options) { return attach.call(this, { ...options, mode: "open" }); };
+    Object.assign(window, { chrome: { runtime: {
+      id: "abcdefghijklmnopabcdefghijklmnop",
+      getURL: (path: string) => `https://classroom.google.com/${path}`,
+      onMessage: { addListener: () => {} },
+      sendMessage: async ({ path }: { path: string }) => ({ ok: true, data: path === "/api/courses"
+        ? { courses: [{ id: "course-1", name: "Biology" }] }
+        : { posts: [{ id: "assignment-1", courseId: "course-1", type: "courseWork", title: "Explain photosynthesis", description: "Explain the role of light.", attachments: [] }] } }),
+    } } });
+  });
+  await page.addScriptTag({ path: resolve("dist/extension/content.js") });
+  await page.getByRole("button", { name: "Work on this assignment", exact: true }).click();
+  const url = new URL((await page.locator("iframe").getAttribute("src"))!);
+  expect(url.searchParams.get("intent")).toBe("assignment");
+  expect(JSON.parse(url.searchParams.get("posts")!)).toEqual([{ id: "assignment-1", type: "courseWork" }]);
+  expect(url.searchParams.get("courseId")).toBe("course-1");
+});

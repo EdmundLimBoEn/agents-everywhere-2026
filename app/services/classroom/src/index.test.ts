@@ -295,8 +295,9 @@ test("parses a real PDF into bounded, page-linked passages", async () => {
     "class1",
     [{ id: "one", type: "courseWork" }],
   );
-  expect(result.failures[0]?.reason).toContain("Visual reading is not configured");
-  result.sources = result.sources.filter(s => s.id === "doc1");
+  expect(result.failures.some(f => f.reason.includes("Visual reading is not configured"))).toBe(true);
+  expect(result.failures[0]!.reason).toContain("No teacher rubric");
+  result.sources = result.sources.filter((source) => source.id === "doc1");
   expect(result.sources[0]!.passages[0]!.page).toBe(1);
   expect(result.sources[0]!.passages.every((p) => p.text.length <= 2000)).toBe(
     true,
@@ -432,4 +433,64 @@ test("rejects assignment edits belonging to another Google project", async () =>
   const s = stub(() => ({ associatedWithDeveloper: false }));
   await expect(new GoogleClassroom("secret", s.fetcher).saveAssignment("class1", { title: "Changed" }, "other")).rejects.toThrow("Google project");
   expect(s.requests).toHaveLength(1);
+});
+
+test("assignment instructions and native rubric stay citable alongside readable attachments", async () => {
+  const s = stub((url) => {
+    if (url.pathname.endsWith("/rubrics")) return { rubrics: [{
+      id: "rubric1", courseId: "class1", courseWorkId: "one",
+      criteria: [{ id: "reasoning", title: "Show reasoning", description: "Explain each transformation.",
+        levels: [{ title: "Complete", description: "All transformations justified.", points: 4 }, { title: "Missing", points: 0 }] }],
+    }] };
+    if (url.hostname === "classroom.googleapis.com") return {
+      ...material("one"), description: "Solve questions 1–4 and show your working.",
+      alternateLink: "https://classroom.google.com/c/abc/a/def/details",
+    };
+    if (url.pathname.endsWith("/denied")) return new Response("", { status: 403 });
+    if (url.hostname === "docs.googleapis.com") return doc;
+    return { id: "doc1", name: "Notes", mimeType: "application/vnd.google-apps.document" };
+  });
+  const api = new GoogleClassroom("secret", s.fetcher);
+  const result = await api.loadSources("class1", [{ id: "one", type: "courseWork" }]);
+  expect(result.sources.map((source) => source.id)).toEqual(["classroom-courseWork-one", "classroom-rubric-one-rubric1", "doc1"]);
+  expect(result.sources[0]).toEqual({
+    id: "classroom-courseWork-one", title: "Assignment instructions: one", mimeType: "text/plain", postIds: ["one"],
+    passages: [{ id: "instructions", text: "one\n\nSolve questions 1–4 and show your working." }],
+    originalUrl: "https://classroom.google.com/c/abc/a/def/details", pdfAvailable: false,
+  });
+  expect(result.sources[1]!.passages[0]).toEqual({
+    id: "criterion-reasoning", text: "Teacher rubric criterion: Show reasoning\nExplain each transformation.\nComplete — All transformations justified. — 4 points\nMissing — 0 points",
+  });
+  expect(result.sources[1]!.postIds).toEqual(["one"]);
+  expect((await api.loadSources("class1", [{ id: "one", type: "courseWork" }])).sources).toEqual(result.sources);
+});
+
+test("missing or denied rubrics preserve instructions while expired authorization is fatal", async () => {
+  for (const status of [200, 403, 401]) {
+    const s = stub((url) => url.pathname.endsWith("/rubrics")
+      ? status === 200 ? {} : new Response("", { status })
+      : { id: "one", courseId: "class1", title: "Exercise", description: "Explain your answer.", alternateLink: "https://evil.example/" });
+    const result = new GoogleClassroom("secret", s.fetcher).loadSources("class1", [{ id: "one", type: "courseWork" }]);
+    if (status === 401) await expect(result).rejects.toThrow("authorization expired");
+    else {
+      const loaded = await result;
+      expect(loaded.sources).toHaveLength(1);
+      expect(loaded.sources[0]!.originalUrl).toBe("https://classroom.google.com");
+      expect(loaded.failures[0]!.reason).toContain(status === 403 ? "denied" : "No teacher rubric");
+    }
+    expect(s.requests).toHaveLength(2);
+  }
+});
+
+test("assignment text is bounded and unrelated rubric content is excluded", async () => {
+  const s = stub((url) => url.pathname.endsWith("/rubrics")
+    ? { rubrics: [{ id: "rubric1", courseId: "class1", courseWorkId: "other", criteria: [] }] }
+    : { id: "one", courseId: "class1", title: "Exercise", description: "word ".repeat(1000) });
+  const loaded = await new GoogleClassroom("secret", s.fetcher).loadSources("class1", [{ id: "one", type: "courseWork" }]);
+  expect(loaded.sources).toHaveLength(1);
+  expect(loaded.sources[0]!.passages[0]!.id).toBe("instructions-part-1");
+  expect(loaded.sources[0]!.passages.every((passage) => passage.text.length <= 2000)).toBe(true);
+  expect(loaded.failures[0]!.reason).toContain("does not belong");
+  const huge = stub(() => ({ id: "one", title: "Exercise", description: "x".repeat(250_001) }));
+  await expect(new GoogleClassroom("secret", huge.fetcher).loadSources("class1", [{ id: "one", type: "courseWork" }])).rejects.toThrow("text limit");
 });

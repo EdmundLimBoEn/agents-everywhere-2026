@@ -362,7 +362,7 @@ export class GoogleClassroom {
     const sources: StudySource[] = [];
     const failures: SourceFailure[] = [];
     let total = 0;
-    for (const post of posts) {
+    for (const post of posts.filter(p => p.type !== "courseWork")) {
       const text = [post.title, post.description].filter(Boolean).join("\n\n").trim();
       if (!text) continue;
       if (text.length > 250_000 || total + text.length > 600_000) throw new Error("Post text exceeds lesson text limit");
@@ -382,6 +382,62 @@ export class GoogleClassroom {
       }
     if (attachments.size > 40)
       throw new Error("Select fewer posts: at most 40 attachments per lesson");
+    const addSource = (source: StudySource) => {
+      const size = source.passages.reduce((n, p) => n + p.text.length, 0);
+      if (!size) throw new Error("No readable text found");
+      if (size > 250_000 || total + size > 600_000)
+        throw new Error("Document exceeds lesson text limit; select a shorter document");
+      total += size;
+      sources.push(source);
+    };
+    for (const post of posts.filter((p) => p.type === "courseWork")) {
+      const classroomLink = post.alternateLink ? URL.parse(post.alternateLink) : null;
+      const originalUrl = classroomLink?.origin === "https://classroom.google.com"
+        ? classroomLink.href : "https://classroom.google.com";
+      const source = {
+        id: `classroom-courseWork-${post.id}`,
+        title: `Assignment instructions: ${post.title}`,
+        mimeType: "text/plain",
+        postIds: [post.id],
+        passages: splitPassage({ id: "instructions", text: [post.title, post.description].filter(Boolean).join("\n\n") }),
+        originalUrl,
+        pdfAvailable: false,
+      };
+      // Assignment instructions get the text budget before optional attachments.
+      addSource(source);
+      try {
+        const rubrics = await this.list(`${CLASSROOM}/courses/${courseId}/courseWork/${post.id}/rubrics`, "rubrics");
+        if (!rubrics.length) throw new Error("No teacher rubric is available for this assignment");
+        for (const rubric of rubrics) {
+          if (rubric.courseId !== courseId || rubric.courseWorkId !== post.id)
+            throw new Error("Rubric does not belong to the selected assignment");
+          addSource({
+            ...source,
+            id: `classroom-rubric-${post.id}-${id(rubric.id)}`,
+            title: `Teacher rubric: ${post.title}`,
+            passages: (rubric.criteria ?? []).flatMap((criterion: GoogleObject) => splitPassage({
+              id: `criterion-${id(criterion.id)}`,
+              text: [
+                `Teacher rubric criterion: ${criterion.title || "Untitled criterion"}`,
+                criterion.description,
+                ...(criterion.levels ?? []).map((level: GoogleObject) => [
+                  level.title,
+                  level.description,
+                  typeof level.points === "number" ? `${level.points} points` : "",
+                ].filter(Boolean).join(" — ")),
+              ].filter(Boolean).join("\n"),
+            })),
+          });
+        }
+      } catch (error) {
+        if (error instanceof GoogleError && error.status === 401) throw error;
+        failures.push({
+          id: `classroom-rubric-${post.id}`,
+          title: `Teacher rubric: ${post.title}`,
+          reason: `Rubric unavailable: ${error instanceof Error ? error.message : "Unable to read rubric"}`,
+        });
+      }
+    }
     for (const [fileId, attachment] of attachments) {
       try {
         const meta = await this.metadata(fileId);
@@ -422,12 +478,7 @@ export class GoogleClassroom {
           throw new Error(
             "No readable content found. Scanned PDFs require the configured visual reader",
           );
-        if (size > 250_000 || total + size > 600_000)
-          throw new Error(
-            "Document exceeds lesson text limit; select a shorter document",
-          );
-        total += size;
-        sources.push({
+        addSource({
           id: fileId,
           title: meta.name || attachment.title,
           mimeType: meta.mimeType,

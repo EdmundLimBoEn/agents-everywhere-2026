@@ -1,4 +1,5 @@
 import type {
+  AssignmentInput,
   Board,
   LearnerProfile,
   PostRef,
@@ -163,7 +164,7 @@ export function board(value: unknown): Board {
   return b as Board;
 }
 
-export function assignment(value: unknown, editing: boolean) {
+export function assignmentWrite(value: unknown, editing: boolean) {
   const b = object(value), result: Record<string, unknown> = {};
   const allowed = new Set(["title", "description", "state", "dueAt", "maxPoints", "topicId", ...(editing ? [] : ["attachments"])]);
   if (Object.keys(b).some(k => !allowed.has(k))) throw new HttpError(400, "Unsupported assignment field; attachments can only be set on creation");
@@ -198,4 +199,27 @@ export function assignment(value: unknown, editing: boolean) {
   }
   if (!Object.keys(result).length) throw new HttpError(400, "No assignment changes supplied");
   return result;
+}
+
+export function assignment(value: unknown): AssignmentInput {
+  const b = object(value);
+  if (!["prepare", "save", "help", "review"].includes(String(b.action)))
+    throw new HttpError(400, "Unknown assignment action");
+  if (!Number.isSafeInteger(b.revision) || Number(b.revision) < 0)
+    throw new HttpError(400, "Invalid lesson revision");
+  const assignmentId = b.assignmentId === undefined ? undefined : id(b.assignmentId);
+  const draft = b.draft === undefined ? undefined : string(b.draft, 20000);
+  const question = b.question === undefined ? undefined : string(b.question, 2000);
+  if (b.action === "prepare" && !assignmentId)
+    throw new HttpError(400, "Select an assignment to prepare");
+  if (b.action === "save" && draft === undefined)
+    throw new HttpError(400, "Include your draft to save");
+  return {
+    action: b.action as AssignmentInput["action"],
+    ...(assignmentId === undefined ? {} : { assignmentId }),
+    ...(draft === undefined ? {} : { draft }),
+    ...(question === undefined ? {} : { question }),
+    revision: Number(b.revision),
+    requestId: id(b.requestId),
+  };
 }

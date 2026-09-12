@@ -26,6 +26,7 @@ export function mountDashboard(main: HTMLElement, options: {
   onBuild: (posts: ClassroomPost[], minutes: number) => void;
   onOpen: (sourceId?: string, passageId?: string) => void;
   onHelp: (prompt: string) => void; onRelevant: (post: ClassroomPost) => void;
+  onAssignment: (post: ClassroomPost) => void;
 }) {
   const { courses, posts, selected, lesson } = options;
   const course = courses.find(c => c.id === options.courseId);
@@ -220,7 +221,11 @@ export function mountDashboard(main: HTMLElement, options: {
       text.append(el("span", `${published} · ${post.attachments.length ? `${post.attachments.length} attached materials` : "Post text"}`, "study-meta"));
       label.append(check, text); card.append(label);
       if (post.dueAt && Number.isFinite(Date.parse(post.dueAt))) card.append(el("span", `Due ${formatDate(post.dueAt)}`, "catchup-due"));
-      if (post.type === "courseWork") card.append(btn("Find helpful notes ↗", () => options.onRelevant(post), "catchup-source"));
+      if (post.type === "courseWork") {
+        const work = btn("Work on this assignment →", () => options.onAssignment(post), "study-primary catchup-assignment-action");
+        work.disabled = !options.teaching;
+        card.append(work, btn("Find helpful notes ↗", () => options.onRelevant(post), "catchup-source"));
+      }
       list.append(card);
     }
     updateSelection();

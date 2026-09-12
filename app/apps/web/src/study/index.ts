@@ -14,6 +14,7 @@ import { manage } from "./manage";
 import { mountBoard } from "./board";
 import "./style.css";
 import { el, btn, mountDashboard } from "./dashboard";
+import { mountAssignment } from "./assignment";
 export function mountStudy(
   root: HTMLElement,
   api: ApiClient,
@@ -115,6 +116,7 @@ export function mountStudy(
   if (options.onClose)
     nav.append(
       btn("Close ×", () => {
+        if (!root.dispatchEvent(new Event("study:before-close", { cancelable: true }))) return;
         root.dispatchEvent(new CustomEvent("study:close"));
         options.onClose!();
       }),
@@ -236,6 +238,7 @@ export function mountStudy(
         void turn("question", prompt);
       },
       onRelevant: post => void relevant(post),
+      onAssignment: post => void startAssignment(post),
     });
   }
   async function buildPlan(chosen: ClassroomPost[], minutes: number) {
@@ -256,6 +259,32 @@ export function mountStudy(
       });
       renderPicker();
       main.querySelector<HTMLElement>("h1")?.focus({ preventScroll: true });
+    });
+  }
+  async function startAssignment(assignment: ClassroomPost) {
+    if (assignment.type !== "courseWork") return;
+    let preparedLesson: Lesson | null = null;
+    const requestId = crypto.randomUUID();
+    const assignedCourse = assignment.courseId;
+    await run(async () => {
+      if (!preparedLesson) {
+        notice.replaceChildren(el("span", "Finding the notes that support this assignment…"));
+        const related = await api<{ posts: ClassroomPost[] }>(`/api/courses/${encodeURIComponent(assignedCourse)}/relevant`, {
+          method: "POST", body: { assignment: { id: assignment.id, type: assignment.type } },
+        });
+        const chosen = new Map<string, ClassroomPost>();
+        chosen.set(key(assignment), assignment);
+        for (const post of [...posts.filter(p => selected.has(key(p))), ...related.posts])
+          if (post.courseId === assignedCourse && post.type !== "courseWork" && chosen.size < 30) chosen.set(key(post), post);
+        preparedLesson = await api<Lesson>("/api/lessons", {
+          method: "POST", body: { courseId: assignedCourse, posts: [...chosen.values()].map(({ id, type }) => ({ id, type })) },
+        });
+      }
+      notice.replaceChildren(el("span", "Reading the assignment requirements and preparing your workspace…"));
+      lesson = await api<Lesson>(`/api/lessons/${preparedLesson.id}/assignment`, {
+        method: "POST", body: { action: "prepare", assignmentId: assignment.id, revision: preparedLesson.revision, requestId },
+      });
+      renderLesson();
     });
   }
   async function createLesson(chosen: ClassroomPost[]) {
@@ -528,6 +557,15 @@ export function mountStudy(
   }
   function renderLesson() {
     if (!lesson) return;
+    if (lesson.assignment) {
+      root.dispatchEvent(new CustomEvent("study:close"));
+      releasePDF();
+      mountAssignment(main, api, lesson, {
+        onBack: renderPicker,
+        onLesson: updated => { lesson = updated; },
+      });
+      return;
+    }
     releasePDF();
     main.className = "";
     const current = lesson;
@@ -902,7 +940,7 @@ export function mountStudy(
     try {
       await loadCourses();
       if (
-        options.intent !== "relevant" &&
+        !["relevant", "assignment"].includes(options.intent || "") &&
         options.posts?.length &&
         selected.size
       ) {
@@ -924,11 +962,14 @@ export function mountStudy(
       throw e;
     }
   }).then(() => {
-    if (options.intent === "relevant") {
+    if (["relevant", "assignment"].includes(options.intent || "")) {
       const assignment = posts.find(
         (p) => selected.has(key(p)) && p.type === "courseWork",
       );
-      if (assignment) void relevant(assignment);
+      if (assignment) {
+        if (options.intent === "assignment") void startAssignment(assignment);
+        else void relevant(assignment);
+      }
     }
   });
 }
