@@ -1,1 +1,1 @@
-OpenAPI source of truth. Generate TypeScript and Swift clients from here.
+HTTP contract for the Bun API. Served live at `/api/openapi.json`.

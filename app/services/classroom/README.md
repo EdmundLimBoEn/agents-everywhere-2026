@@ -1,5 +1,1 @@
-# Classroom service
-
-Owns Google OAuth token slots (student vs teacher), Classroom REST, add-on attachment create, turn-in, and draft grade passback.
-
-Fixtures for local mocks live in `fixtures/`. They must still look like Classroom resources.
+Google Classroom, Drive, and Docs client. Lists courses, posts, and topics; verifies each selected post belongs to the course; extracts passages from Google Docs and text-layer PDFs.

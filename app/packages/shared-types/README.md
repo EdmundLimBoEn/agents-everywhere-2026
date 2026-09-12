@@ -1,1 +1,1 @@
-Types shared across web and services that are not domain schemas.
+Lesson, source, and API types shared by the extension, study UI, and server. See `src/study.ts`.
