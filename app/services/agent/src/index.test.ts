@@ -395,6 +395,16 @@ describe("whiteboard annotations", () => {
     expect(() => validateReply({ ...reply, board: many(41) }, passages)).toThrow("invalid lesson");
   });
 
+  test("generation constrains targets to the current student shapes, including empty and tutor-only boards", async () => {
+    const tutorOnly: Lesson = { ...lesson, board: { items: [{ id: "tutor-0", kind: "rectangle", x: 0, y: 0, width: 100, height: 50, text: "Leaf" }], strokes: [] } };
+    for (const [current, allowed] of [[drawn, ["battery", "wire", "label", null]], [lesson, [null]], [tutorOnly, [null]]] as const) {
+      await generateReply(current, profile, { ...question, whiteboard: true }, config(answer, (body) => {
+        const target = body.text.format.schema.properties.board.items.properties.target;
+        expect(target.enum).toEqual(allowed);
+      }));
+    }
+  });
+
   test("annotations may only point at shapes the student drew, and free notes drop the null target", async () => {
     for (const target of ["gone", "old-mark", "nope"])
       await expect(

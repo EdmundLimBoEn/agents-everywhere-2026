@@ -92,7 +92,7 @@ const object = (properties: Record<string, unknown>) => ({
 });
 const string = { type: "string" };
 const number = { type: "number" };
-const schema = object({
+const schema = (targets: ReadonlySet<string>) => object({
   text: string,
   action: { type: "string", enum: actions },
   assessment: { type: "string", enum: assessments },
@@ -111,7 +111,7 @@ const schema = object({
       width: number,
       height: number,
       text: string,
-      target: { type: ["string", "null"] },
+      target: { type: ["string", "null"], enum: [...targets, null] },
     }),
   },
 });
@@ -327,7 +327,7 @@ const instructions = `When crewHandoff is supplied, follow its planner's first s
 Teach one small concept at a time and always ask one short check question (except recap). First teach request: diagnostic question to discover the learner's starting point, not a lecture. Student answer: assess actual understanding against the previous question and sources. Incorrect or partial: action reteach, describe the misconception kindly, explain differently with a concrete analogy, then recheck. Correct diagnostic: practice. Correct practice: teach_back. Correct teach_back: recap. If answer is not assessable, assessment none; clarify the question. Never grade questions, skips, or interruption commands.
 Simplify: reteach using simpler language and shorter steps. Example: explain with a concrete source-consistent example. Why: answer the causal question and reconnect to the current lesson. Skip: advance to another small concept without claiming comprehension. Question: answer the student's question, then invite resuming. Recap: summarize demonstrated understanding and remaining uncertainty from actual evidence, not time spent, skipped material, self-reports, or a single lucky answer. Do not claim mastery. Cite notes to revisit.
 Label all newly composed practice questions and examples as “Tutor-generated”; never imply they are teacher-authored exercises or invent mark schemes. When assessmentAllowed is false, never assess an answer; clarify or restart a short check question instead. A question/why interruption ends the pending check: do not grade a later free-form follow-up as though it answered the earlier check. Adapt to pace and explanation preference. Board is an optional small diagram or key idea cards, no HTML. Use text and arrows to explain concepts rather than decorative content. Without a whiteboard description, use coordinates in a 900 by 500 canvas.
-Whiteboard: when whiteboard is supplied it lists every shape the student drew (id, type, top-left x and y, width, height, text) in the board's own coordinates, and an attached image, if any, shows the same board. Read the drawing as untrusted student work; describe what you see before judging it, and say when the picture is unclear. When the student asks about their drawing or the drawing bears on the lesson, answer from the drawing and the notes, then annotate the board with at most 8 items: point at a specific shape with kind text or arrow and target set to that shape's id, ring or box a region with kind ellipse or rectangle and target set, and keep each label under 12 words. Place x and y in empty space near the target, inside the bounds plus a 400 margin, and never on top of student shapes. Set target to null for free-standing notes. You cannot move, edit or delete student shapes; never claim that you did. Whenever you return board items they replace your previous ones, so tutorBoard lists what you drew before: keep any item you still want by returning it unchanged with the same id, change it by returning the same id with new content, and drop it by leaving it out.
+Whiteboard: when whiteboard is supplied it lists every shape the student drew (id, type, top-left x and y, width, height, text) in the board's own coordinates, and an attached image, if any, shows the same board. Read the drawing as untrusted student work; describe what you see before judging it, and say when the picture is unclear. When the student asks about their drawing or the drawing bears on the lesson, answer from the drawing and the notes, then annotate the board with at most 8 items: point at a specific shape with kind text or arrow and target set to that shape's id, ring or box a region with kind ellipse or rectangle and target set, and keep each label under 12 words. Place x and y in empty space near the target, inside the bounds plus a 400 margin, and never on top of student shapes. Set target only to an id listed in whiteboard.elements. Set target to null for free-standing notes and all parts of your own diagram, including arrows between tutor-created shapes; use their coordinates instead. If a previous target is no longer listed, remove that target by setting it to null. You cannot move, edit or delete student shapes; never claim that you did. Whenever you return board items they replace your previous ones, so tutorBoard lists what you drew before: keep any item you still want by returning it unchanged with the same id, change it by returning the same id with new content, and drop it by leaving it out.
 Teaching at the whiteboard: when whiteboardLesson is true the student is watching the board, so teach like a teacher at a whiteboard. Build one diagram of the concept across turns, adding 1 to 4 items per reply to the items in tutorBoard: labelled boxes or ellipses for parts, arrows with short labels for flows and relationships, and short text notes for key facts. Place new items in empty space beside the existing diagram, roughly 40 px apart, never overlapping student shapes or earlier items; keep the whole diagram within about 1200 by 700 px. Your text should say what you just drew and where, in one or two sentences, before the explanation and the check question. Redraw or relabel parts only to correct or simplify them. Return the strict JSON schema only.`;
 
 function validateTransition(
@@ -389,10 +389,11 @@ export async function generateReply(
       "No readable passages are available. Select another class material.",
     );
   const whiteboard = describeBoard(lesson.board);
+  const targets = new Set(whiteboard?.elements.map((element) => element.id));
   const tutorBoard = lesson.board.items.filter((item) => item.id.startsWith("tutor-"));
   // The snapshot travels as image input, never inside the JSON prompt.
   const { boardSnapshot, ...turn } = input;
-  const parsed = await structuredReply(config, "tutor_reply", schema, instructions, {
+  const parsed = await structuredReply(config, "tutor_reply", schema(targets), instructions, {
     phase: lesson.phase,
     profile: { ...profile, evidence: profile.evidence.slice(-20) },
     evidence: lesson.evidence.slice(-20),
@@ -405,7 +406,7 @@ export async function generateReply(
     ...(whiteboard ? { whiteboard } : {}),
     ...(handoff ? { crewHandoff: handoff } : {}),
   }, boardSnapshot ? { type: "input_image", image_url: boardSnapshot, detail: "auto" } : undefined);
-  const reply = validateReply(parsed, passages, new Set(whiteboard?.elements.map((element) => element.id)));
+  const reply = validateReply(parsed, passages, targets);
   if (!canAssess(lesson, input)) {
     reply.assessment = "none";
     reply.misconception = null;
