@@ -82,3 +82,26 @@ test("reviewer disagreement cannot record false evidence", async () => {
   await expect(generateCrewReply(lesson, profile, { ...first, intent: "answer", text: "Food" }, model.config)).rejects.toThrow("disagreed");
   expect(lesson.evidence).toHaveLength(0);
 });
+
+
+test("crew generation declares the same text bounds its validator requires", async () => {
+  const lesson = lessonFixture();
+  lesson.phase = "diagnostic";
+  lesson.messages = [{ id: "question", role: "agent", text: diagnostic.text, action: "diagnostic", citations, createdAt: lesson.createdAt }];
+  const model = provider([scout, { ...scout, assessment: "incorrect", prerequisite: "Energy versus food" }, plan, { ...diagnostic, action: "reteach", assessment: "incorrect" }]);
+  await generateCrewReply(lesson, profile, { ...first, intent: "answer", text: "Food" }, model.config);
+  const [scoutSchema, reviewerSchema, plannerSchema] = model.calls.map(call => call.text.format.schema.properties);
+  for (const field of [scoutSchema.text, reviewerSchema.text, reviewerSchema.prerequisite, plannerSchema.reason, plannerSchema.steps.items.properties.text]) {
+    expect(field).toMatchObject({ minLength: 1, maxLength: 2000, pattern: "\\S" });
+  }
+});
+
+test("invalid crew text never commits a partial lesson", async () => {
+  for (const text of ["", "   ", "x".repeat(2001)]) {
+    for (const outputs of [[{ ...scout, text }], [scout, { ...plan, reason: text }], [scout, { ...plan, steps: [{ ...plan.steps[0], text }] }]]) {
+      const lesson = lessonFixture(), before = structuredClone(lesson);
+      await expect(generateCrewReply(lesson, profile, first, provider(outputs).config)).rejects.toThrow("invalid text");
+      expect(lesson).toEqual(before);
+    }
+  }
+});
