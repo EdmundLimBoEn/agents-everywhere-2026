@@ -5,6 +5,7 @@ import type { GoogleClassroom } from "../../classroom/src";
 import type {
   Lesson,
   StudySource,
+  TurnInput,
   TutorReply,
 } from "../../../packages/shared-types/src/study";
 
@@ -299,17 +300,23 @@ test("board geometry, duplicate IDs and invalid turn inputs cannot be persisted"
       height: 50,
     };
   for (const board of [
-    { items: [{ ...item, x: -1 }], strokes: [] },
+    { items: [{ ...item, x: -100001 }], strokes: [] },
+    { items: [{ ...item, width: -1 }], strokes: [] },
+    { items: [{ ...item, kind: "diamond" }], strokes: [] },
+    { items: [{ ...item, target: "not an id" }], strokes: [] },
+    { items: [{ ...item, extra: true }], strokes: [] },
     { items: [item, item], strokes: [] },
     { items: [], strokes: [{ color: "red", points: [] }] },
   ])
     expect(
       (await s.request(`/lessons/${l.id}/board`, "PUT", board)).status,
     ).toBe(400);
+  // Tutor annotations use the scene's coordinates, which may be negative, and may name a student shape.
+  const annotation = { ...item, id: "tutor-0", kind: "ellipse" as const, x: -40, y: -20, target: "shape-1" };
   expect(
     (
       await s.request(`/lessons/${l.id}/board`, "PUT", {
-        items: [item],
+        items: [item, annotation],
         strokes: [],
       })
     ).status,
@@ -318,11 +325,43 @@ test("board geometry, duplicate IDs and invalid turn inputs cannot be persisted"
     { intent: "answer", text: " ", requestId: "a", revision: 0 },
     { intent: "teach", text: "", requestId: "a", revision: -1 },
     { intent: "hack", text: "", requestId: "a", revision: 0 },
+    { intent: "question", text: "What is this?", requestId: "a", revision: 0, boardSnapshot: "https://example.com/board.png" },
+    { intent: "question", text: "What is this?", requestId: "a", revision: 0, boardSnapshot: "data:text/html;base64,PHNjcmlwdD4=" },
+    { intent: "question", text: "What is this?", requestId: "a", revision: 0, boardSnapshot: "data:image/png;base64,not base64!" },
   ])
     expect(
       (await s.request(`/lessons/${l.id}/turn`, "POST", input)).status,
     ).toBe(400);
-  expect(s.store.lesson("student-one", l.id)!.board.items).toEqual([item]);
+  expect(s.store.lesson("student-one", l.id)!.board.items).toEqual([item, annotation]);
+});
+
+test("a whiteboard picture reaches the tutor but never the stored turn fingerprint", async () => {
+  let seen: TurnInput | undefined;
+  const s = setup({
+    tutor: async (_lesson, _profile, input) => {
+      seen = input;
+      return { ...diagnostic, action: "answer" };
+    },
+  });
+  const l = await s.create();
+  // Larger than the plain 300 KB turn limit; pictures get their own allowance.
+  const boardSnapshot = `data:image/jpeg;base64,${"QUJD".repeat(120000)}`;
+  const question = { intent: "question", text: "Is my circuit complete?", requestId: "board-q", revision: 0 };
+  const r = await s.request(`/lessons/${l.id}/turn`, "POST", { ...question, boardSnapshot });
+  expect(r.status).toBe(200);
+  expect(seen?.boardSnapshot).toBe(boardSnapshot);
+  expect(((await r.json()) as Lesson).messages.at(-1)?.annotated).toBeUndefined();
+  const committed = s.store.turn("student-one", l.id, "board-q")!;
+  expect(committed.fingerprint).not.toContain("QUJD");
+  expect(committed.fingerprint.length).toBeLessThan(300);
+  // Retrying the same question with a fresh picture replays the saved lesson instead of teaching again.
+  seen = undefined;
+  const retry = await s.request(`/lessons/${l.id}/turn`, "POST", { ...question, boardSnapshot: "data:image/png;base64,aGVsbG8=" });
+  expect(retry.status).toBe(200);
+  expect(seen).toBeUndefined();
+  expect(
+    (await s.request(`/lessons/${l.id}/turn`, "POST", { ...question, text: "Different question", boardSnapshot })).status,
+  ).toBe(409);
 });
 
 test("parallel lessons preserve both evidence records and preferences edited during generation", async () => {

@@ -28,12 +28,14 @@ export async function generateCrewReply(lesson: Lesson, profile: LearnerProfile,
   config = { ...config, signal: config.signal ?? AbortSignal.timeout(180000) };
   const passages = retrieve(lesson.sources, `${lesson.title} ${input.text} ${lesson.messages.slice(-2).map((m) => m.text).join(" ")}`);
   if (!passages.length) throw new Error("No readable passages are available. Select another class material.");
+  // Crew members plan from text; only the tutor looks at the whiteboard picture.
+  const { boardSnapshot: _snapshot, ...turn } = input;
   const context = {
     passages,
     selectedPosts: lesson.classroomPosts?.map(({ id, type, title, dueAt, publishedAt }) => ({ id, type, title, dueAt, publishedAt })) ?? [],
     unavailable: lesson.failures,
     now: new Date().toISOString(),
-    input,
+    input: turn,
     conversation: lesson.messages.slice(-12),
     evidence: lesson.evidence.slice(-20),
     preferences: { pace: profile.pace, explanation: profile.explanation, goals: profile.goals },

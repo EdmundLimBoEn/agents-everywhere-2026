@@ -797,5 +797,10 @@ html, body { margin: 0; }
 
 [data-board-host] { padding: 12px; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 [data-board-host] > .study-tools { flex-shrink: 0; }
+.study-board-ask { flex-shrink: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.study-board-ask input { flex: 1 1 220px; min-width: 0; padding: 8px 10px; border: 1px solid var(--green); border-radius: 4px; font-size: 14px; }
+.study-board-ask button { font-size: 12px; padding: 8px 12px; white-space: nowrap; }
+.study-board-ask .study-meta { flex-basis: 100%; }
+.study-annotated { display: inline-block; margin-top: 6px; color: var(--green); font-size: 12px; }
 .study-excalidraw { flex: 1; min-height: 0; width: 100%; position: relative; }
 .catchup-assignment-action { margin: 16px 0 0 33px; font-size: 13px !important; }

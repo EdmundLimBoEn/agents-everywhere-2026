@@ -5,6 +5,9 @@ import type {
   PostRef,
   TurnInput,
 } from "../../../packages/shared-types/src/study";
+import { BOARD_COORDINATE_LIMIT } from "../../agent/src";
+/** Data URL length; a 1400 px JPEG of a sketch is well under this. Turn requests allow 3 MB in total. */
+export const BOARD_SNAPSHOT_LIMIT = 2_000_000;
 export class HttpError extends Error {
   constructor(
     public status: number,
@@ -67,8 +70,11 @@ export function turn(value: unknown): TurnInput {
     throw new HttpError(400, "Invalid lesson revision");
   if (b.catchUpMinutes !== undefined && (!Number.isSafeInteger(b.catchUpMinutes) || Number(b.catchUpMinutes) < 5 || Number(b.catchUpMinutes) > 120))
     throw new HttpError(400, "Catch-up time must be 5–120 whole minutes");
+  if (b.boardSnapshot !== undefined && !/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(string(b.boardSnapshot, BOARD_SNAPSHOT_LIMIT)))
+    throw new HttpError(400, "Whiteboard snapshot must be a PNG, JPEG or WebP image");
   return {
     ...(b.catchUpMinutes !== undefined ? { catchUpMinutes: Number(b.catchUpMinutes) } : {}),
+    ...(b.boardSnapshot !== undefined ? { boardSnapshot: b.boardSnapshot as string } : {}),
     intent: intent as TurnInput["intent"],
     text,
     requestId: id(b.requestId),
@@ -105,16 +111,23 @@ export function board(value: unknown): Board {
   let points = 0;
   const finite = (n: unknown) =>
     typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 2000;
+  // Tutor annotations follow the student's scene, so items share the scene's coordinate range.
+  const coordinate = (n: unknown) =>
+    typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= BOARD_COORDINATE_LIMIT;
   const ids = new Set<string>();
   for (const item of b.items) {
     const r = object(item);
     const key = id(r.id);
     if (
       ids.has(key) ||
-      !["text", "arrow", "rectangle"].includes(String(r.kind)) ||
-      !["x", "y", "width", "height"].every((k) => finite(r[k]))
+      !["text", "arrow", "rectangle", "ellipse"].includes(String(r.kind)) ||
+      !["x", "y", "width", "height"].every((k) => coordinate(r[k])) ||
+      Number(r.width) < 0 ||
+      Number(r.height) < 0 ||
+      Object.keys(r).some((k) => !["id", "kind", "x", "y", "width", "height", "text", "target"].includes(k))
     )
       throw new HttpError(400, "Invalid board item");
+    if (r.target !== undefined) id(r.target);
     ids.add(key);
     string(r.text, 1000);
   }

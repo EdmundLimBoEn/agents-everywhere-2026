@@ -1,6 +1,6 @@
 # Lesson state machine
 
-The lesson is an explicit state machine enforced on the server in `app/services/agent/src/index.ts`. The model proposes text, an action, an assessment, a misconception, citations, and board items as strict JSON. The server rejects any reply whose action does not match the required transition, whose citation is not an exact substring of a retrieved passage, or that assesses an answer when no check question is pending.
+The lesson is an explicit state machine enforced on the server in `app/services/agent/src/index.ts`. The model proposes text, an action, an assessment, a misconception, citations, and board items as strict JSON. The server rejects any reply whose action does not match the required transition, whose citation is not an exact substring of a retrieved passage, that assesses an answer when no check question is pending, or whose whiteboard annotation targets a shape the student did not draw.
 
 ## Entry
 
@@ -51,6 +51,10 @@ ready → diagnostic → teaching / reteaching → practice → teach_back → c
 ## Observable adaptation
 
 Run the same diagnostic twice, once with a wrong answer and once with a right one. The wrong answer must produce `reteach` with a named misconception and a citation. The right one must produce `practice`. Rewording the same script does not pass.
+
+## Whiteboard annotations
+
+Every turn gives the tutor a description of the student's saved whiteboard: each shape's id, type, position, size and text, with deleted shapes and the tutor's own earlier marks left out. A question asked from the Whiteboard tab also carries a picture of the board as image input; the picture never enters the JSON prompt or the stored idempotency fingerprint. Reply board items may set `target` to one of the listed shape ids, and the server rejects any other target. Accepted items replace the tutor's previous marks, student shapes are never edited, and the agent message is flagged `annotated` so the thread can point back to the board. The state machine is unchanged: an annotated answer to a question is still `answer`.
 
 ## Catch-up crew
 

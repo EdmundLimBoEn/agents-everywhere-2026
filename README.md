@@ -12,7 +12,7 @@ It is a Chrome extension. Teachers change nothing about how they work, and nothi
 2. Tick two posts and click **Study these together**.
 3. The attached Docs and PDFs open as readable tabs beside the lesson.
 4. Enter the time you have and click **Build my plan**. A scout, planner, tutor, and reviewer produce a few steps that fit the budget, each citing the notes. Click **Start** on the first step.
-5. Ask a question that needs both documents. Click a citation to jump to the passage.
+5. Ask a question that needs both documents. Click a citation to jump to the passage. Or sketch on the **Whiteboard** tab and ask about your sketch; the tutor marks its answer next to your shapes.
 6. Click **Teach me**. Answer the diagnostic wrong. Watch the tutor reteach and highlight the teacher's own material, and the plan reorder around the gap.
 7. Explain the idea back. Get a recap of what you showed and what to revisit.
 8. Close the overlay. You are on the same Classroom page. Reopen to resume.
@@ -29,7 +29,7 @@ Full script and acceptance checks: [docs/hackathon-scope.md](docs/hackathon-scop
 | Classroom client | `app/services/classroom` | Classroom, Drive, and Docs APIs. Reads posts, due dates, and extracts passages from attachments |
 | Tutor | `app/services/agent/src/index.ts` | Strict JSON output, verified citations, enforced lesson state machine |
 | Catch-up crew | `app/services/agent/src/crew.ts` | Class Scout, Planner, and Reviewer around the tutor. Steps must cite passages and fit the time budget; reviewer and tutor must agree |
-| Study UI | `app/apps/web` | Catch Up dashboard, document tabs, lesson thread, whiteboard, optional voice |
+| Study UI | `app/apps/web` | Catch Up dashboard, document tabs, lesson thread, whiteboard the tutor annotates on request, optional voice |
 
 Read-only Google scopes only. No grade passback, no submissions.
 

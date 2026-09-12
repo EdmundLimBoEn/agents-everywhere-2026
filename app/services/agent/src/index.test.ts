@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { applyReply, generateReply, retrieve, validateReply } from "./index";
+import { applyReply, describeBoard, generateReply, retrieve, validateReply } from "./index";
 import type {
   Lesson,
   LearnerProfile,
@@ -312,4 +312,75 @@ describe("grounded adaptive tutor", () => {
 
 test("unassessed answers cannot silently complete the lesson", () => {
   expect(() => applyReply(lesson, input, {...reply, assessment: "none", action: "recap"})).toThrow("cannot finish");
+});
+
+describe("whiteboard annotations", () => {
+  const scene = {
+    elements: [
+      { id: "battery", type: "rectangle", x: -40.4, y: 20, width: 80, height: 30.6, isDeleted: false },
+      { id: "wire", type: "freedraw", x: 40, y: 35, width: 200, height: 4 },
+      { id: "label", type: "text", x: -40, y: 60, width: 60, height: 20, text: "cell" },
+      { id: "gone", type: "ellipse", x: 0, y: 0, width: 10, height: 10, isDeleted: true },
+      { id: "old-mark", type: "arrow", x: 0, y: 0, width: 10, height: 10, customData: { boardItemId: "tutor-0" } },
+    ],
+    files: {},
+    sourceItems: [],
+  };
+  const drawn: Lesson = { ...lesson, board: { items: [], strokes: [], scene } };
+  const question: TurnInput = { ...input, intent: "question", text: "Is my battery drawn right?", boardSnapshot: "data:image/jpeg;base64,QUJD" };
+  const annotation = { id: "ring", kind: "ellipse" as const, x: -60, y: 0, width: 120, height: 70, text: "Battery", target: "battery" };
+  const answer = { ...reply, action: "answer" as const };
+
+  test("the tutor sees the student's shapes, not deleted ones or its own earlier marks", () => {
+    const context = describeBoard(drawn.board)!;
+    expect(context.elements.map((e) => e.id)).toEqual(["battery", "wire", "label"]);
+    expect(context.elements[0]).toEqual({ id: "battery", type: "rectangle", x: -40, y: 20, width: 80, height: 31 });
+    expect(context.elements[2]?.text).toBe("cell");
+    expect(context.bounds).toEqual({ minX: -40, minY: 20, maxX: 240, maxY: 80 });
+    expect(context.tutorAnnotations).toBe(1);
+    expect(describeBoard({ items: [], strokes: [] })).toBeNull();
+    expect(describeBoard({ items: [{ id: "tutor-0", kind: "text", x: 0, y: 0, width: 1, height: 1, text: "mine" }], strokes: [] })).toBeNull();
+    expect(describeBoard({ items: [{ id: "note", kind: "text", x: 5, y: 6, width: 1, height: 1, text: "mine" }], strokes: [] })?.elements).toEqual([
+      { id: "note", type: "text", x: 5, y: 6, width: 1, height: 1, text: "mine" },
+    ]);
+  });
+
+  test("whiteboard questions send the drawing as text and picture; the picture stays out of the prompt JSON", async () => {
+    const result = await generateReply(drawn, profile, question, config({ ...answer, board: [annotation] }, (body) => {
+      const [text, image] = body.input[0].content;
+      const data = JSON.parse(text.text);
+      expect(data.whiteboard.elements.map((e: { id: string }) => e.id)).toEqual(["battery", "wire", "label"]);
+      expect(data.input).toEqual({ ...input, intent: "question", text: question.text });
+      expect(image).toEqual({ type: "input_image", image_url: question.boardSnapshot, detail: "auto" });
+      expect(body.max_output_tokens).toBe(16000);
+    }));
+    expect(result.board).toEqual([annotation]);
+    const next = applyReply(drawn, question, result);
+    expect(next.board.items).toEqual([{ ...annotation, id: "tutor-0" }]);
+    expect(next.messages.at(-1)).toMatchObject({ role: "agent", annotated: true });
+    expect(applyReply(drawn, question, { ...result, board: [] }).messages.at(-1)?.annotated).toBeUndefined();
+    await generateReply(lesson, profile, { ...input, intent: "question" }, config(answer, (body) => {
+      expect(typeof body.input[0].content).toBe("string");
+      expect(JSON.parse(body.input[0].content).whiteboard).toBeUndefined();
+    }));
+  });
+
+  test("annotations may only point at shapes the student drew, and free notes drop the null target", async () => {
+    for (const target of ["gone", "old-mark", "nope"])
+      await expect(
+        generateReply(drawn, profile, question, config({ ...answer, board: [{ ...annotation, target }] })),
+      ).rejects.toThrow("not on the whiteboard");
+    await expect(
+      generateReply(lesson, profile, { ...input, intent: "question" }, config({ ...answer, board: [annotation] })),
+    ).rejects.toThrow("not on the whiteboard");
+    const free = await generateReply(lesson, profile, { ...input, intent: "question" }, config({ ...answer, board: [{ ...annotation, target: null }] }));
+    expect(free.board[0]).not.toHaveProperty("target");
+    const passages = retrieve(lesson.sources, "");
+    for (const change of [{ kind: "diamond" }, { x: 100001 }, { y: -100001 }, { width: -5 }, { target: 3 }])
+      expect(() => validateReply({ ...reply, board: [{ ...annotation, target: null, ...change }] }, passages)).toThrow("invalid board");
+    expect(() =>
+      validateReply({ ...reply, board: [{ id: "a", kind: "text", x: 0, y: 0, width: 1, height: 1, text: "no target key" }] }, passages),
+    ).toThrow("invalid board");
+    expect(validateReply({ ...reply, board: [{ ...annotation, x: -99999, y: 99999, target: null }] }, passages).board[0]?.x).toBe(-99999);
+  });
 });
