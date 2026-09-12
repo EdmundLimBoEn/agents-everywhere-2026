@@ -396,7 +396,8 @@ test("reads Office, image, text and Workspace attachments through the correct fo
       continue;
     }
     const loaded = await new GoogleClassroom("secret", s.fetcher, reader).loadSources("class1", [{ id: "one", type: "courseWork" }]);
-    expect(loaded.failures).toEqual([]);
+    expect(loaded.failures).toHaveLength(1);
+    expect(loaded.failures[0]?.reason).toContain("No teacher rubric");
     expect(loaded.sources.at(-1)?.pdfAvailable).toBe(false);
     if (mimeType === "text/csv") expect(loaded.sources.at(-1)?.passages[0]?.text).toBe("a,b\n1,2");
     else expect(calls).toEqual([mimeType]);

@@ -172,3 +172,14 @@ RUN_LIVE_ASSIGNMENT=1 bun test services/agent/src/assignment.live.test.ts
 ```
 
 This opt-in test uses the configured OpenAI account. Citation validation rejects altered quotes rather than displaying unsupported evidence; a rejected model response can be retried without losing the draft.
+
+## Integrated worktree verification
+
+The integrated build combines Excalidraw scene persistence, document and
+assignment authoring, mixed-file reading, and the student assignment workspace.
+Assignment instructions and rubrics use their dedicated citation IDs; other
+Classroom post text remains available as sources without duplicating assignments.
+The authoring and student-workspace request validators remain separate.
+
+Run `bun run check` and `E2E_PORT=8798 CI=1 bun run test:e2e` from `app/`.
+Live provider tests are opt-in; local browser checks use synthetic Classroom data.

@@ -21,7 +21,7 @@ test("file reader sends actual bytes, labels interpretation, caches identical co
 
 test("malformed or empty file readings fail instead of inventing a source", async () => {
   for (const value of [{ passages: [], limitations: "Unreadable" }, { passages: [{ text: "x".repeat(2001), location: "page" }], limitations: "" }]) {
-    const read = fileReader({ apiKey: "test", model: "test", fetcher: (async () => Response.json({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(value) }] }] })) as typeof fetch });
+    const read = fileReader({ apiKey: "test", model: "test", fetcher: (async (_: unknown, _init: RequestInit) => Response.json({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(value) }] }] })) as typeof fetch });
     await expect(read(new Uint8Array([1]), "application/pdf", "scan.pdf")).rejects.toThrow();
   }
 });

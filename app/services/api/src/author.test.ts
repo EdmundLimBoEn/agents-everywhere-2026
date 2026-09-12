@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { assignment } from "./validation";
+import { assignmentWrite as assignment } from "./validation";
 
 test("assignment boundary defaults to draft, validates attachment sharing, and rejects attachment edits", () => {
   expect(assignment({ title: "Exercise", attachments: [{ id: "doc1", shareMode: "STUDENT_COPY" }], dueAt: "2026-09-20T15:30:00Z" }, false)).toEqual({ title: "Exercise", state: "DRAFT", materials: [{ driveFile: { driveFile: { id: "doc1" }, shareMode: "STUDENT_COPY" } }], dueDate: { year: 2026, month: 9, day: 20 }, dueTime: { hours: 15, minutes: 30 } });
