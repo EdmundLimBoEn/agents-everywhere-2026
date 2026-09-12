@@ -211,6 +211,8 @@ If port 8787 is occupied, use `E2E_PORT=8798 bun run test:e2e` for a separate te
 
 [CI](.github/workflows/ci.yml) runs the checks and Chromium tests with mocked integrations. Live-provider tests are opt-in. Browser fixtures do not verify school OAuth, real Classroom documents, model availability, or microphone/WebRTC connectivity; use the [live acceptance checks](docs/hackathon-scope.md#acceptance-checks-before-demo) before demonstrating those integrations.
 
+Run `bun run audit` to check the locked dependencies for known vulnerabilities. CI enforces this alongside the tests. The [release guide](docs/release-readiness.md) covers the supported local deployment, backups, dependency overrides, and remaining live-account checks.
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Roadmap

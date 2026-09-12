@@ -37,7 +37,7 @@ const app = createApp({
     ),
   },
 });
-Bun.serve({
+const server = Bun.serve({
   port,
   hostname: process.env.HOST || "127.0.0.1",
   idleTimeout: 120,
@@ -51,7 +51,7 @@ Bun.serve({
     if (url.pathname.startsWith("/api/"))
       return extensionTransport(request, app);
     const path = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
-    if (!/^[\w./-]+$/.test(path) || path.split("/").includes(".."))
+    if (path.startsWith("/") || !/^[\w./-]+$/.test(path) || path.split("/").includes(".."))
       return new Response("Not found", { status: 404 });
     const file = Bun.file(resolve(root, "dist/web", path));
     if (!(await file.exists()))
@@ -67,5 +67,5 @@ Bun.serve({
   },
 });
 console.log(
-  `Study is ready at http://localhost:${port}. Google and OpenAI configuration stays on the server.`,
+  `Study is ready at ${server.url} Google and OpenAI configuration stays on the server.`,
 );

@@ -1,5 +1,6 @@
 import {
   mkdir,
+  rm,
   cp,
   readdir,
   readFile,
@@ -35,8 +36,10 @@ if (
   throw new Error(
     "API_ORIGIN must be an HTTPS origin or loopback HTTP origin.",
   );
-for (const dir of ["dist/web", "dist/extension"])
+for (const dir of ["dist/web", "dist/extension"]) {
+  await rm(resolve(root, dir), { recursive: true, force: true });
   await mkdir(resolve(root, dir), { recursive: true });
+}
 const ui = await Bun.build({
   entrypoints: [resolve(root, "apps/web/src/entry.ts")],
   outdir: resolve(root, "dist/web"),

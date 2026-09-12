@@ -3,8 +3,6 @@ import { assignmentSourcesChanged, generateAssignment } from "../../agent/src/as
 import { generateCrewReply } from "../../agent/src/crew";
 import type {
   Lesson,
-  TurnInput,
-  TutorReply,
 } from "../../../packages/shared-types/src/study";
 import { GoogleClassroom, GoogleError, documentPassages } from "../../classroom/src";
 import { generateReply, applyReply, structuredReply } from "../../agent/src";
@@ -96,7 +94,10 @@ export function createApp({
     const parts = url.pathname
       .split("/")
       .filter(Boolean)
-      .map(decodeURIComponent);
+      .map((part) => {
+        try { return decodeURIComponent(part); }
+        catch { throw new v.HttpError(400, "Invalid URL encoding"); }
+      });
     const method = request.method;
     if (url.pathname === "/api/status" && method === "GET")
       return json({
@@ -534,9 +535,9 @@ export function createApp({
             ? "auth_required"
             : "service_error";
       const message =
-        error instanceof Error
+        error instanceof v.HttpError || error instanceof GoogleError
           ? error.message
-          : "The request could not be completed.";
+          : "The request could not be completed. Please retry.";
       response = json({ error: message, code }, status);
     }
     if (origin && config.allowedOrigins.includes(origin)) {

@@ -4,7 +4,6 @@ import { dirname } from "node:path";
 import type {
   Lesson,
   LearnerProfile,
-  Evidence,
 } from "../../../packages/shared-types/src/study";
 
 export class Store {

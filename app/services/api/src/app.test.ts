@@ -171,6 +171,22 @@ test("body size, malformed JSON, identifiers and empty selections are validated"
       ).status,
     ).toBe(status);
 });
+test("malformed route encoding is a client error", async () => {
+  const s = setup();
+  expect((await s.request("/lessons/%ZZ")).status).toBe(400);
+});
+test("unexpected failures stay private and leave the lesson unchanged", async () => {
+  const s = setup({ tutor: async () => { throw new Error("Internal secret: database path /private/student.sqlite"); } });
+  const lesson = await s.create();
+  const response = await s.request(`/lessons/${lesson.id}/turn`, "POST", {
+    intent: "teach", text: "", requestId: "private-error", revision: 0,
+  });
+  expect(response.status).toBe(502);
+  expect(await response.json()).toEqual({
+    error: "The request could not be completed. Please retry.", code: "service_error",
+  });
+  expect(s.store.lesson("student-one", lesson.id)?.revision).toBe(0);
+});
 test("partial sources remain readable; empty sources cannot start teaching; PDFs return bytes", async () => {
   const s = setup(),
     l = await s.create();

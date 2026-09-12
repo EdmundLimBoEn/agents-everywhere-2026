@@ -2,6 +2,7 @@
   "name": "adaptive-study-agent",
   "private": true,
   "type": "module",
+  "packageManager": "bun@1.3.14",
   "workspaces": [
     "apps/*",
     "services/*",
@@ -13,15 +14,20 @@
     "start": "bun services/api/src/index.ts",
     "build": "bun scripts/build.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "bun test services apps/extension/src",
+    "test": "bun test services apps/extension/src scripts",
     "test:e2e": "playwright test",
-    "check": "bun run typecheck && bun run test && bun run build"
+    "check": "bun run typecheck && bun run test && bun run build",
+    "audit": "bun audit"
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.1",
-    "pdfjs-dist": "^5.4.149",
+    "pdfjs-dist": "^6.2.108",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
+  },
+  "overrides": {
+    "lodash-es": "4.18.1",
+    "nanoid": "5.1.16"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0",

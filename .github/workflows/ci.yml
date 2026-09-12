@@ -27,6 +27,8 @@ jobs:
           bun-version: "1.3.14"
       - name: Install locked dependencies
         run: bun install --frozen-lockfile
+      - name: Audit dependencies
+        run: bun run audit
       # Mocked integrations require no Google or OpenAI secrets.
       - name: Typecheck, unit tests and build
         run: bun run check

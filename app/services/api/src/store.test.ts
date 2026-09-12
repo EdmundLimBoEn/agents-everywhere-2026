@@ -1,5 +1,8 @@
 import { expect, test } from "bun:test";
 import { Store } from "./store";
+import { mkdtempSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type {
   Lesson,
   LearnerProfile,
@@ -18,6 +21,22 @@ const lesson = (id = "lesson"): Lesson => ({
   createdAt: "2026-01-01",
   updatedAt: "2026-01-01",
   revision: 0,
+});
+test("disk-backed lessons survive reopening with owner-only database permissions", () => {
+  const directory = mkdtempSync(join(tmpdir(), "afterclass-store-"));
+  const path = join(directory, "study.sqlite");
+  let store = new Store(path);
+  try {
+    store.save("alice", lesson());
+    store.close();
+    store = new Store(path);
+    expect(store.lesson("alice", "lesson")?.title).toBe("Light");
+    expect(store.lesson("bob", "lesson")).toBeNull();
+    expect(statSync(path).mode & 0o777).toBe(0o600);
+  } finally {
+    store.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 test("failed turn transaction rolls back lesson and profile together", () => {
   const s = new Store(":memory:");
