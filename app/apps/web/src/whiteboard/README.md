@@ -1,12 +1,14 @@
 # Lesson whiteboard
 
+Open a lesson and click **Whiteboard**, the first tab above the source documents. It stays visible while you scroll through document tabs; its tooltip reads **Draw with Excalidraw**. On narrow screens the canvas retains a 420 px drawing area.
+
 The lesson Whiteboard tab embeds Excalidraw, bundled locally for the web app and Chrome extension. Students can draw, edit shapes and arrows, add text and images, undo/redo, and import/export Excalidraw files using its native controls.
 
 **Teach me at the whiteboard.** This lesson action opens the board and runs the whole lesson there. Every turn sent while the Whiteboard tab is open carries `whiteboard: true`, and the tutor receives its own current items (`tutorBoard`) so it can grow one diagram across turns: unchanged items come back with the same id and are kept, changed ones are redrawn, omitted ones disappear. New items are revealed one at a time (about 0.4 s apart, skipped when the OS asks for reduced motion) while the viewport follows, and the scene is saved once the drawing completes. Up to 40 items per reply.
 
 **Ask about your drawing.** The field above the canvas sends a question to the tutor together with a JPEG snapshot of the board (Excalidraw's own export, at most 1400 px, made in the browser) and a list of the student's shapes (id, type, position, size, text) that the API derives from the saved scene. The reply's board items may name a shape as `target`: text and arrows point at it, rectangles and ellipses ring it. Every tutor mark uses one green stroke and carries `customData.boardItemId`, so the next annotated reply replaces the previous marks while student shapes stay untouched; marks are ordinary elements the student can move or delete. Questions asked from a document tab work the same way without the picture, and the answer then offers **See it on the whiteboard**. The server rejects a reply that points at a shape not on the board, and the tutor cannot move or delete student shapes.
 
-Scenes autosave through the authenticated lesson board endpoint; Save retries failures. The in-memory draft survives tab changes, and teaching/voice wait for pending saves. Existing notes and strokes migrate on opening. Changed tutor diagrams replace their previous shapes while unrelated student drawings remain.
+Scenes autosave through the authenticated lesson board endpoint; Save retries failures. Only one save runs at a time; edits made during it are combined into the latest scene for the next save, instead of queuing every intermediate drawing. The in-memory draft survives tab changes, and teaching/voice wait for pending saves. Existing notes and strokes migrate on opening. Changed tutor diagrams replace their previous shapes while unrelated student drawings remain.
 
 The optional `Board.scene` stores elements (including deletion markers), embedded image files, and the source items used to reconcile tutor updates. Existing `items` and `strokes` remain compatible with older lessons. Pan, zoom, selection and undo history are session-only. No multiplayer service is configured.
 

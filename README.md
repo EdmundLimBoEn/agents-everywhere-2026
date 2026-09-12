@@ -4,7 +4,7 @@ An AI teacher that lives inside Google Classroom.
 
 Students open their real class, tick the posts they want help with, and get tutored from those exact documents. Every explanation cites a passage the student can click to open. The tutor checks what the student understands and changes what it teaches next. When a student is behind, **Catch Up** turns the selected posts and the time they have into a short, cited plan.
 
-It is a Chrome extension. Teachers change nothing about how they work, and nothing is written back to Classroom.
+It is a Chrome extension. The study flow works with teachers' existing materials. The separate **Docs & assignments** editor can create and update Google Docs and Classroom assignments after user review.
 
 ## Demo
 
@@ -31,7 +31,7 @@ Full script and acceptance checks: [docs/hackathon-scope.md](docs/hackathon-scop
 | Catch-up crew | `app/services/agent/src/crew.ts` | Class Scout, Planner, and Reviewer around the tutor. Steps must cite passages and fit the time budget; reviewer and tutor must agree |
 | Study UI | `app/apps/web` | Catch Up dashboard, document tabs, lesson thread, whiteboard the tutor annotates on request, optional voice |
 
-Read-only Google scopes only. No grade passback, no submissions.
+Google access includes read scopes for studying and write scopes for the **Docs & assignments** editor. Google account permissions still apply. No grade passback or student submissions. See [setup and scope details](docs/build-and-run.md#google-configuration).
 
 ## Run it
 
