@@ -1,0 +1,3 @@
+# Map scraped PDFs to Google Classroom items.
+# Fill courseId and itemId from a real class. Do not add fake PDFs.
+links: []

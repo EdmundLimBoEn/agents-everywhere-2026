@@ -1,0 +1,28 @@
+export const toolNames = [
+  "listCourses",
+  "getCourseWork",
+  "listCourseMaterials",
+  "listAnnouncements",
+  "getSubmission",
+  "turnInSubmission",
+  "passBackDraftGrade",
+  "createAddOnAttachment",
+  "getAddOnContext",
+  "searchNotes",
+  "searchPracticePapers",
+  "getTopicGraph",
+  "getLearnerProfile",
+  "updateMastery",
+  "recordMisconception",
+  "getPracticeQuestion",
+  "generatePracticeQuestion",
+  "markAnswer",
+  "getWhiteboard",
+  "modifyWhiteboard",
+  "saveLesson",
+  "saveLessonSummary",
+  "getPreviousLesson",
+  "recommendNextTopic",
+] as const;
+
+export type ToolName = (typeof toolNames)[number];

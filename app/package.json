@@ -1,0 +1,13 @@
+{
+  "name": "adaptive-study-agent",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*",
+    "scripts/*"
+  ],
+  "scripts": {
+    "typecheck": "bunx tsc --noEmit -p tsconfig.json"
+  }
+}
