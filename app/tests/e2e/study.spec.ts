@@ -204,7 +204,7 @@ test("selected posts, adaptive response, exact citation and saved lesson resume"
     contentType: "image/png",
   });
   await page
-    .getByRole("button", { name: "Resume a lesson", exact: true })
+    .getByRole("button", { name: /Saved lessons/ })
     .click();
   await page
     .getByRole("button", { name: "Photosynthesis", exact: true })
@@ -362,7 +362,7 @@ test("catch-up crew plans within chosen time, replans after an answer and surviv
   await page.locator(".study-crew summary").click();
   await page.screenshot({ path: testInfo.outputPath("catch-up-crew.png"), fullPage: true });
   await page.getByRole("button", { name: "← Materials", exact: true }).click();
-  await page.getByRole("button", { name: "Resume a lesson", exact: true }).click();
+  await page.getByRole("button", { name: /Saved lessons/ }).click();
   await page.getByRole("button", { name: "Photosynthesis", exact: true }).click();
   await page.locator(".study-crew summary").click();
   await expect(page.getByText("Revisit first: Energy versus food")).toBeVisible();
@@ -395,11 +395,11 @@ test("dashboard builds a cited plan, remembers checkmarks and opens the tutor at
   expect(hint.intent).toBe("question");
   expect(hint.text).toContain("without solving the assignment");
   await page.reload();
-  await page.getByRole("button", { name: "Resume a lesson", exact: true }).click();
+  await page.getByRole("button", { name: /Saved lessons/ }).click();
   await page.getByRole("button", { name: "Photosynthesis", exact: true }).click();
   await page.getByRole("button", { name: "Your catch-up plan", exact: true }).click();
   await expect(page.getByLabel("Mark step 1 complete")).toBeChecked();
-  await page.getByRole("button", { name: "Resume a lesson", exact: true }).click();
+  await page.getByRole("button", { name: /Saved lessons/ }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Done", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Your catch-up plan", exact: true })).toHaveCount(0);

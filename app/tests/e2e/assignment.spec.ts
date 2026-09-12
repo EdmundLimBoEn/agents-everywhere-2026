@@ -100,7 +100,7 @@ test("assignment workspace prepares, saves, gives cited help, reviews and resume
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByText("Your explanation identifies energy. Add chlorophyll and a source reference before submitting.", { exact: true })).toHaveCount(0);
   await page.reload();
-  await page.getByRole("button", { name: "Resume a lesson", exact: true }).click();
+  await page.getByRole("button", { name: /Saved lessons/ }).click();
   await page.getByRole("dialog").getByRole("button", { name: assignment.title, exact: true }).click();
   await expect(draft).toHaveValue("Plants use sunlight as energy to make glucose. Chlorophyll absorbs light.");
   await page.setViewportSize({ width: 390, height: 844 });
