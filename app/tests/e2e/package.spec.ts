@@ -60,11 +60,11 @@ test("packaged MV3 extension starts its worker, injects Classroom and opens its 
         frame.url().startsWith(`chrome-extension://${id}/study.html`),
       )!;
     await expect(
-      frame.getByRole("heading", { name: "Let’s make it click.", exact: true }),
+      frame.getByRole("heading", { name: "Let’s get you caught up.", exact: true }),
     ).toBeVisible();
     await expect(
       frame.getByRole("button", {
-        name: "Connect Google Classroom",
+        name: "Connect Google Classroom →",
         exact: true,
       }),
     ).toBeVisible();

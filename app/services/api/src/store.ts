@@ -133,6 +133,7 @@ export class Store {
         .all(owner) as { data: string }[];
       for (const row of rows) {
         const l: Lesson = JSON.parse(row.data);
+        if (l.evidence.some((e) => e.id === id)) delete l.catchUp;
         l.evidence = l.evidence.filter((e) => e.id !== id);
         this.save(owner, l);
       }

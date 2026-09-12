@@ -1,3 +1,4 @@
+import { classroomCourseRef } from "../../../../packages/classroom-api/src/route";
 import type {
   ApiClient,
   Board,
@@ -11,22 +12,7 @@ import type {
 } from "../../../../packages/shared-types/src/study";
 import { mountBoard } from "./board";
 import "./style.css";
-const el = <K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  text = "",
-  cls = "",
-) => {
-  const node = document.createElement(tag);
-  node.textContent = text;
-  node.className = cls;
-  return node;
-};
-const btn = (text: string, action: () => void, cls = "") => {
-  const node = el("button", text, cls);
-  node.type = "button";
-  node.onclick = action;
-  return node;
-};
+import { el, btn, mountDashboard } from "./dashboard";
 export function mountStudy(
   root: HTMLElement,
   api: ApiClient,
@@ -42,15 +28,17 @@ export function mountStudy(
   },
 ) {
   root.classList.add("study-app");
+  const dashboardFilters = { since: undefined as string | undefined, minutes: 45, topicId: "" };
   let courses: ClassroomCourse[] = [],
     posts: ClassroomPost[] = [],
     topics: ClassroomTopic[] = [],
     selected = new Set<string>(),
     courseId = "",
-    topicId = "",
     lesson: Lesson | null = null,
+    dashboardLesson: Lesson | null = null,
     activeSource = "",
     boardOpen = false,
+    crewOpen = false,
     busy = false;
   const boards = new Map<
     string,
@@ -113,13 +101,15 @@ export function mountStudy(
   } | null = null;
   const header = el("header", "", "study-header"),
     logo = el("div", "", "study-logo");
-  logo.append(el("span", "a", "study-mark"), el("span", "Afterclass"));
+  logo.append(el("span", "✦", "study-mark"), el("span", "Afterclass"));
   header.append(
     logo,
-    el("span", "A little clarity. A lot of possibility.", "study-tagline"),
+    el("span", "CATCH UP, WITH A LITTLE HELP.", "study-tagline"),
   );
   const nav = el("nav");
-  nav.append(btn("My learning", () => void profile()));
+  const learning = btn("My learning", () => void profile());
+  learning.disabled = true;
+  nav.append(learning);
   if (options.onClose)
     nav.append(
       btn("Close ×", () => {
@@ -177,19 +167,10 @@ export function mountStudy(
   async function loadCourses() {
     const result = await api<{ courses: ClassroomCourse[] }>("/api/courses");
     courses = result.courses;
+    learning.disabled = false;
     const requested = options.courseId || options.courseRef;
-    const ref = options.courseRef?.match(/\/c\/([^/?#]+)/)?.[1];
-    let decoded = "";
-    try {
-      decoded = ref ? atob(ref) : "";
-    } catch {}
-    courseId =
-      courses.find(
-        (c) =>
-          c.id === requested ||
-          c.id === decoded ||
-          (!!ref && c.alternateLink?.includes(`/c/${ref}`)),
-      )?.id || (requested ? "" : courses[0]?.id || "");
+    const ref = classroomCourseRef(options.courseRef);
+    courseId = courses.find(c => c.id === requested || (!!ref && (c.id === ref || classroomCourseRef(c.alternateLink) === ref)))?.id || (requested ? "" : courses[0]?.id || "");
     if (courseId) await loadPosts();
     else renderPicker();
   }
@@ -201,8 +182,8 @@ export function mountStudy(
     }>(`/api/courses/${encodeURIComponent(courseId)}/posts`);
     posts = result.posts;
     topics = result.topics;
+    dashboardFilters.topicId = "";
     selected.clear();
-    topicId = "";
     if (options.postRef) {
       const p = posts.find((p) => p.id === options.postRef);
       if (p) selected.add(key(p));
@@ -214,198 +195,64 @@ export function mountStudy(
       main.prepend(el("p", result.warnings.join(" "), "study-warning"));
   }
   const key = (p: PostRef) => `${p.type}:${p.id}`;
+  function forgetChecklist(id: string) {
+    try { localStorage.removeItem(`afterclass:checklist:${id}`); } catch {}
+  }
+  function openDashboardLesson(sourceId?: string, passageId?: string) {
+    if (!dashboardLesson) return;
+    lesson = dashboardLesson;
+    activeSource = sourceId || lesson.sources[0]?.id || "";
+    boardOpen = false;
+    renderLesson();
+    if (passageId) {
+      const passage = document.getElementById(`passage-${passageId}`);
+      passage?.classList.add("highlight");
+      passage?.focus();
+      passage?.scrollIntoView({ block: "nearest" });
+    }
+  }
   function renderPicker() {
     root.dispatchEvent(new CustomEvent("study:close"));
     releasePDF();
+    if (lesson?.catchUp) dashboardLesson = lesson;
     lesson = null;
-    main.replaceChildren();
-    const intro = el("section", "", "study-intro");
-    intro.append(
-      el("p", "YOUR CLASSROOM, UNDERSTOOD", "study-eyebrow"),
-      el("h1", "Let’s make it click."),
-      el(
-        "p",
-        "Bring your teacher’s materials. We’ll work through the ideas together.",
-        "study-deck",
-      ),
-    );
-    main.append(intro);
-    if (status && !status.configured.teaching)
-      main.append(
-        el(
-          "p",
-          "Teaching is not configured yet. Add the teaching provider credentials in the server setup, then reload.",
-          "study-warning",
-        ),
-      );
-    if (status && !status.configured.google)
-      main.append(
-        el(
-          "p",
-          "Google access is not configured yet. Complete the Google OAuth setup before connecting.",
-          "study-warning",
-        ),
-      );
-    if (!courses.length) {
-      const empty = el("section", "", "study-empty");
-      empty.append(
-        el(
-          "h2",
-          status?.configured.google
-            ? "Your classroom starts here."
-            : "Connect your classroom.",
-        ),
-        el(
-          "p",
-          "Sign in with Google to choose real class materials and start a lesson.",
-        ),
-      );
-      if (options.onConnect)
-        empty.append(
-          btn(
-            "Connect Google Classroom",
-            () =>
-              void run(async () => {
-                await options.onConnect!();
-                await loadCourses();
-              }),
-            "study-primary",
-          ),
-        );
-      else
-        empty.append(
-          el(
-            "p",
-            "Install the Afterclass extension, then open Google Classroom and connect your account.",
-          ),
-        );
-      main.append(empty);
-      return;
-    }
-    const filters = el("div", "", "study-filters"),
-      course = el("select");
-    course.setAttribute("aria-label", "Class");
-    if (!courseId) {
-      const placeholder = el("option", "Choose this classroom");
-      placeholder.value = "";
-      placeholder.disabled = true;
-      course.append(placeholder);
-    }
-    for (const c of courses) {
-      const o = el("option", c.name);
-      o.value = c.id;
-      course.append(o);
-    }
-    course.value = courseId;
-    course.onchange = () =>
-      void run(async () => {
-        courseId = course.value;
-        await loadPosts();
+    mountDashboard(main, {
+      courses, posts, topics, courseId, selected, filters: dashboardFilters,
+      lesson: dashboardLesson?.courseId === courseId ? dashboardLesson : null,
+      teaching: status?.configured.teaching !== false,
+      onCourse: id => void run(async () => { courseId = id; await loadPosts(); }),
+      onRefresh: () => void run(loadPosts),
+      onHistory: () => void history(),
+      ...(options.onConnect ? { onConnect: () => void run(async () => { await options.onConnect!(); await loadCourses(); }) } : {}),
+      onStudy: chosen => void createLesson(chosen),
+      onBuild: (chosen, minutes) => void buildPlan(chosen, minutes),
+      onOpen: openDashboardLesson,
+      onHelp: prompt => {
+        openDashboardLesson();
+        void turn("question", prompt);
+      },
+      onRelevant: post => void relevant(post),
+    });
+  }
+  async function buildPlan(chosen: ClassroomPost[], minutes: number) {
+    if (!chosen.length || chosen.length > 30) return;
+    // Retain the created lesson and request ID if the provider needs a retry.
+    let draft: Lesson | null = null;
+    const requestId = crypto.randomUUID();
+    await run(async () => {
+      notice.replaceChildren(el("span", "Reading your selected class materials…"));
+      draft ??= await api<Lesson>("/api/lessons", {
+        method: "POST",
+        body: { courseId, posts: chosen.map(({ id, type }) => ({ id, type })) },
       });
-    const topic = el("select");
-    topic.setAttribute("aria-label", "Topic");
-    const all = el("option", "All topics");
-    all.value = "";
-    topic.append(all);
-    for (const t of topics) {
-      const o = el("option", t.name);
-      o.value = t.topicId;
-      topic.append(o);
-    }
-    topic.value = topicId;
-    topic.onchange = () => {
-      topicId = topic.value;
+      notice.replaceChildren(el("span", "Your crew is building a plan around your notes and available time…"));
+      dashboardLesson = await api<Lesson>(`/api/lessons/${draft.id}/turn`, {
+        method: "POST",
+        body: { intent: "teach", text: "", catchUpMinutes: minutes, requestId, revision: draft.revision },
+      });
       renderPicker();
-    };
-    filters.append(
-      course,
-      topic,
-      btn("Resume a lesson", () => void history()),
-    );
-    main.append(filters);
-    const layout = el("div", "", "study-picker-layout"),
-      list = el("section", "", "study-posts");
-    list.append(el("h2", "Choose what to explore"));
-    const visible = posts.filter((p) => !topicId || p.topicId === topicId);
-    if (!visible.length) list.append(el("p", "No posts in this topic yet."));
-    for (const p of visible) {
-      const card = el("article", "", "study-post"),
-        label = el("label"),
-        check = el("input");
-      check.type = "checkbox";
-      check.checked = selected.has(key(p));
-      check.onchange = () => {
-        if (check.checked) selected.add(key(p));
-        else selected.delete(key(p));
-        updateSelection();
-      };
-      const content = el("span");
-      content.append(
-        el(
-          "span",
-          p.type === "courseWork"
-            ? "ASSIGNMENT"
-            : p.type === "announcements"
-              ? "STREAM"
-              : "MATERIAL",
-          "study-eyebrow",
-        ),
-        el("strong", p.title),
-        el("span", p.description.slice(0, 220), "study-description"),
-        el(
-          "span",
-          p.attachments.length
-            ? `${p.attachments.length} attached material${p.attachments.length === 1 ? "" : "s"}`
-            : "Post text",
-          "study-meta",
-        ),
-      );
-      label.append(check, content);
-      card.append(label);
-      if (p.type === "courseWork")
-        card.append(
-          btn(
-            "Find notes that help with this ↗",
-            () => void relevant(p),
-            "study-text-button",
-          ),
-        );
-      list.append(card);
-    }
-    const aside = el("aside", "", "study-start");
-    aside.append(
-      el("span", "01 / GATHER", "study-eyebrow"),
-      el("h2", "Your notes.\nA new way in."),
-      el(
-        "p",
-        "Select materials from several posts. Your tutor will teach with those sources open beside you.",
-      ),
-    );
-    const count = el("p", "", "study-selection-count");
-    const start = btn(
-      "Study these together →",
-      () => void createLesson(posts.filter((p) => selected.has(key(p)))),
-      "study-primary",
-    );
-    aside.append(count, start);
-    if (topicId)
-      aside.append(
-        btn(
-          "Study this topic",
-          () => void createLesson(visible),
-          "study-secondary",
-        ),
-      );
-    aside.append(
-      el("p", "Every explanation stays connected to its source.", "study-meta"),
-    );
-    layout.append(list, aside);
-    main.append(layout);
-    updateSelection();
-    function updateSelection() {
-      count.textContent = `${selected.size} post${selected.size === 1 ? "" : "s"} selected`;
-      start.disabled = !selected.size;
-    }
+      main.querySelector<HTMLElement>("h1")?.focus({ preventScroll: true });
+    });
   }
   async function createLesson(chosen: ClassroomPost[]) {
     await run(async () => {
@@ -481,6 +328,12 @@ export function mountStudy(
             () =>
               void run(async () => {
                 await api(`/api/lessons/${item.id}`, { method: "DELETE" });
+                forgetChecklist(item.id);
+                if (lesson?.id === item.id) lesson = null;
+                if (dashboardLesson?.id === item.id) {
+                  dashboardLesson = null;
+                  renderPicker();
+                }
                 row.remove();
               }),
           ),
@@ -572,6 +425,15 @@ export function mountStudy(
                 await api(`/api/profile/evidence/${e.id}`, {
                   method: "DELETE",
                 });
+                if (lesson?.id === e.lessonId) {
+                  delete lesson.catchUp;
+                  renderLesson();
+                }
+                if (dashboardLesson?.id === e.lessonId) {
+                  delete dashboardLesson.catchUp;
+                  forgetChecklist(e.lessonId);
+                  if (!lesson) renderPicker();
+                }
                 row.remove();
               }),
           ),
@@ -584,13 +446,19 @@ export function mountStudy(
           confirm.body.append(
             el(
               "p",
-              "This permanently deletes your saved lessons, preferences, and learning observations.",
+              "This permanently deletes your saved lessons, preferences, and learning observations, plus all Catch Up checkmarks on this device.",
             ),
             btn(
               "Delete everything",
               () =>
                 void run(async () => {
                   await api("/api/profile", { method: "DELETE" });
+                  try {
+                    for (const key of Object.keys(localStorage))
+                      if (key.startsWith("afterclass:checklist:")) localStorage.removeItem(key);
+                  } catch {}
+                  lesson = null;
+                  dashboardLesson = null;
                   confirm.close();
                   d.close();
                   renderPicker();
@@ -602,12 +470,13 @@ export function mountStudy(
       );
     });
   }
-  async function turn(intent: TurnIntent, text = "") {
+  async function turn(intent: TurnIntent, text = "", catchUpMinutes?: number) {
     if (!lesson) return;
     const lessonId = lesson.id,
       body = {
         intent,
         text,
+        ...(catchUpMinutes !== undefined ? { catchUpMinutes } : {}),
         requestId: crypto.randomUUID(),
         revision: lesson.revision,
       };
@@ -617,6 +486,8 @@ export function mountStudy(
         await board.pending;
         if (board.error) throw board.error;
       }
+      if (catchUpMinutes !== undefined || lesson?.catchUp)
+        notice.replaceChildren(el("span", "Your crew is reading, planning, and preparing the next step…"));
       lesson = await api<Lesson>(`/api/lessons/${lessonId}/turn`, {
         method: "POST",
         body,
@@ -654,6 +525,7 @@ export function mountStudy(
   function renderLesson() {
     if (!lesson) return;
     releasePDF();
+    main.className = "";
     const current = lesson;
     main.replaceChildren();
     const title = el("div", "", "study-lesson-title");
@@ -662,6 +534,7 @@ export function mountStudy(
       el("h1", current.title),
       el("span", current.phase.replaceAll("_", " "), "study-phase"),
     );
+    if (current.catchUp) title.append(btn("Your catch-up plan", renderPicker));
     main.append(title);
     for (const fail of current.failures)
       main.append(el("p", `${fail.title}: ${fail.reason}`, "study-warning"));
@@ -811,6 +684,72 @@ export function mountStudy(
       messages.append(
         btn("Teach me this topic →", () => void turn("teach"), "study-primary"),
       );
+      const catchUp = el("form", "", "study-catch-up-start"), label = el("label", "Time I have right now"), budget = el("input");
+      budget.type = "number";
+      budget.min = "5";
+      budget.max = "120";
+      budget.step = "1";
+      budget.value = "25";
+      budget.required = true;
+      label.append(budget, el("span", " minutes"));
+      const start = el("button", "Help me catch up →", "study-primary");
+      start.type = "submit";
+      catchUp.onsubmit = (event) => {
+        event.preventDefault();
+        if (catchUp.reportValidity()) void turn("teach", "", budget.valueAsNumber);
+      };
+      catchUp.append(el("p", "FOUR AGENTS. ONE WAY FORWARD.", "study-eyebrow"), el("h2", "Let’s find your next step."), el("p", "A scout, planner, tutor, and reviewer work together using the materials you selected."), label, start);
+      messages.prepend(catchUp);
+    }
+    if (current.catchUp) {
+      const crew = current.catchUp, panel = el("details", "", "study-crew");
+      panel.open = crewOpen;
+      panel.ontoggle = () => { crewOpen = panel.open; };
+      const summary = el("summary", `Your catch-up crew · ${crew.minutes} min window`);
+      summary.append(el("span", `Next: ${crew.plan.steps[0]?.text ?? "Review your plan"}`, "study-crew-next"));
+      panel.append(summary);
+      const addNote = (parent: HTMLElement, note: { text: string; citations: { sourceId: string; passageId: string; quote: string }[] }) => {
+        parent.append(el("p", note.text));
+        for (const citation of note.citations) {
+          const source = current.sources.find((source) => source.id === citation.sourceId);
+          if (!source?.passages.some((p) => p.id === citation.passageId && p.text.includes(citation.quote))) {
+            parent.append(el("span", "Source unavailable; reload materials.", "study-warning"));
+            continue;
+          }
+          parent.append(btn(`↗ ${source.title}`, () => {
+            activeSource = source.id;
+            boardOpen = false;
+            renderLesson();
+            const passage = [...root.querySelectorAll<HTMLElement>(".study-passage")].find((p) => p.id === `passage-${citation.passageId}`);
+            passage?.classList.add("highlight");
+            passage?.focus();
+            passage?.scrollIntoView({ block: "nearest" });
+          }, "study-citation"));
+        }
+      };
+      const scout = el("section");
+      scout.append(el("h3", "01 / Class scout"));
+      addNote(scout, crew.scout);
+      const review = el("section");
+      review.append(el("h3", "02 / Reviewer"));
+      if (crew.review) {
+        addNote(review, crew.review);
+        if (crew.review.prerequisite) review.append(el("p", `Revisit first: ${crew.review.prerequisite}`, "study-crew-gap"));
+      } else review.append(el("p", "Waiting for an answer to check. No understanding assumed."));
+      const plan = el("section");
+      plan.append(el("h3", "03 / Planner"), el("p", crew.plan.reason));
+      const steps = el("ol");
+      for (const step of crew.plan.steps) {
+        const item = el("li");
+        item.append(el("strong", `${step.minutes} min`));
+        addNote(item, step);
+        steps.append(item);
+      }
+      plan.append(steps, el("p", "Time estimates for your next study window, not a completion record.", "study-meta"));
+      const coach = el("section");
+      coach.append(el("h3", "04 / Tutor"), el("p", "Your next learning step is below. Answer it and the crew will adjust."));
+      panel.append(scout, review, plan, coach);
+      tutor.append(panel);
     }
     for (const m of current.messages) {
       const article = el("article", "", `study-message ${m.role}`);
@@ -943,7 +882,7 @@ export function mountStudy(
       );
     }
     root.dispatchEvent(new CustomEvent("study:lesson", { detail: current }));
-    messages.scrollTop = messages.scrollHeight;
+    messages.scrollTop = current.messages.length ? messages.scrollHeight : 0;
   }
   root.addEventListener("study:voice-lesson", (event) => {
     lesson = (event as CustomEvent<Lesson>).detail;
@@ -951,6 +890,7 @@ export function mountStudy(
     if (board && !board.error) board.draft = structuredClone(lesson.board);
     followTeaching();
   });
+  renderPicker();
   void run(async () => {
     status = await api("/api/status");
     try {
@@ -974,6 +914,7 @@ export function mountStudy(
       }
     } catch (e) {
       renderPicker();
+      if (e instanceof Error && e.message === "Connect your Google account to read your Classroom materials.") return;
       throw e;
     }
   }).then(() => {

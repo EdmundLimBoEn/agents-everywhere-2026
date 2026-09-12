@@ -83,3 +83,21 @@ test("deletion removes owner evidence and cached turns while retaining other own
     s.close();
   }
 });
+
+test("saved crew survives reload and forgetting evidence clears derived crew notes", () => {
+  const store = new Store(":memory:");
+  try {
+    const l = lesson();
+    l.evidence = [{ id: "review", lessonId: l.id, topic: "Light", answer: "Food", assessment: "incorrect", misconception: "Energy versus food", intervention: "Review energy", createdAt: l.createdAt }];
+    const note = { text: "Review energy", citations: [] };
+    l.catchUp = { minutes: 15, scout: note, review: { ...note, assessment: "incorrect", prerequisite: "Energy versus food" }, plan: { reason: "Revisit first", steps: [{ ...note, minutes: 5 }] } };
+    store.commitTurn("alice", l, "crew-turn", "fingerprint", { name: "Alice", pace: "balanced", explanation: "words", goals: "", evidence: l.evidence });
+    expect(store.lesson("alice", l.id)?.catchUp).toEqual(l.catchUp);
+    store.deleteEvidence("alice", "review");
+    expect(store.lesson("alice", l.id)?.catchUp).toBeUndefined();
+    expect(store.lesson("alice", l.id)?.evidence).toEqual([]);
+    expect(store.turn("alice", l.id, "crew-turn")).toBeNull();
+  } finally {
+    store.close();
+  }
+});

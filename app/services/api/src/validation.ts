@@ -64,7 +64,10 @@ export function turn(value: unknown): TurnInput {
     throw new HttpError(400, "Enter your answer or question");
   if (!Number.isSafeInteger(b.revision) || Number(b.revision) < 0)
     throw new HttpError(400, "Invalid lesson revision");
+  if (b.catchUpMinutes !== undefined && (!Number.isSafeInteger(b.catchUpMinutes) || Number(b.catchUpMinutes) < 5 || Number(b.catchUpMinutes) > 120))
+    throw new HttpError(400, "Catch-up time must be 5–120 whole minutes");
   return {
+    ...(b.catchUpMinutes !== undefined ? { catchUpMinutes: Number(b.catchUpMinutes) } : {}),
     intent: intent as TurnInput["intent"],
     text,
     requestId: id(b.requestId),

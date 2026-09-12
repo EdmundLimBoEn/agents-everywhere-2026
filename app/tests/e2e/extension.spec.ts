@@ -14,7 +14,7 @@ test("Classroom content controls survive DOM updates and restore page focus", as
   await page.route("https://classroom.google.com/study.html**", (route) =>
     route.fulfill({ contentType: "text/html", body: "<h1>Study fixture</h1>" }),
   );
-  await page.goto("https://classroom.google.com/c/Y291cnNlLTE=");
+  await page.goto("https://classroom.google.com/u/0/c/Y291cnNlLTE=");
   await page.evaluate(
     ({ fixturePosts }) => {
       // Open the otherwise closed root solely for inspecting the injected UI in this test.
@@ -88,14 +88,16 @@ test("Classroom content controls survive DOM updates and restore page focus", as
       },
     ]);
   await page.evaluate(() => {
-    history.pushState({}, "", "/c/Y291cnNlLTE=/t/all");
+    history.pushState({}, "", "/u/0/w/Y291cnNlLTE=/t/all");
     window.dispatchEvent(new PopStateEvent("popstate"));
   });
   await expect(first).toBeChecked();
   await expect(page.locator('[data-classroom-study="post"]')).toHaveCount(2);
   await expect(page.getByRole("dialog")).not.toBeVisible();
   await expect(launch).toBeFocused();
+  await page.locator("iframe").evaluate((frame) => frame.setAttribute("srcdoc", ""));
   await launch.click();
+  await expect(page.locator("iframe")).not.toHaveAttribute("srcdoc");
   expect(
     await page.evaluate(
       () =>

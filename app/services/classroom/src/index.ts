@@ -173,6 +173,8 @@ export class GoogleClassroom {
         "Class announcement",
       description: raw.description || raw.text || "",
       topicId: raw.topicId,
+      publishedAt: raw.creationTime,
+      ...(raw.dueDate ? { dueAt: new Date(Date.UTC(raw.dueDate.year, raw.dueDate.month - 1, raw.dueDate.day, raw.dueTime?.hours || 0, raw.dueTime?.minutes || 0, raw.dueTime?.seconds || 0)).toISOString() } : {}),
       alternateLink: raw.alternateLink,
       attachments: (raw.materials ?? []).flatMap((m: GoogleObject) =>
         m.driveFile?.driveFile?.id

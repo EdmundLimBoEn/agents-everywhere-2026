@@ -62,6 +62,18 @@ async function mockClassroom(page: Page) {
             ],
         createdAt: lesson.createdAt,
       });
+      if (body.catchUpMinutes || lesson.catchUp) {
+        const note = { text: "Light supplies energy, not food.", citations: [{ sourceId: "source-a", passageId: "passage-a", quote: "Sunlight supplies energy" }] };
+        lesson.catchUp = {
+          minutes: body.catchUpMinutes ?? lesson.catchUp!.minutes,
+          scout: { ...note, text: "Two selected materials explain photosynthesis." },
+          review: diagnostic ? null : { ...note, assessment: "incorrect", prerequisite: "Energy versus food" },
+          plan: { reason: diagnostic ? "Begin with the role of light." : "Revisit energy before the glucose exercise.", steps: [{ ...note, text: "Explain what plants get from sunlight.", minutes: 5 }, ...(body.catchUpMinutes >= 25 || (lesson.catchUp?.minutes ?? 0) >= 25 ? [
+            { ...note, text: "Trace how light energy becomes glucose.", minutes: 10, citations: [{ sourceId: "source-b", passageId: "passage-b", quote: "Plants use light energy to make glucose" }] },
+            { ...note, text: "Describe the role of chlorophyll in your own words.", minutes: 5, citations: [{ sourceId: "source-a", passageId: "passage-a2", quote: "Chlorophyll absorbs the light" }] },
+          ] : [])] },
+        };
+      }
       lesson.phase = diagnostic ? "diagnostic" : "reteaching";
       lesson.revision++;
       data = lesson;
@@ -289,4 +301,117 @@ test("teaching waits for a pending whiteboard save and preserves failed draft on
   await page.unroute("**/api/lessons/lesson-1/board");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+});
+
+
+test("catch-up crew plans within chosen time, replans after an answer and survives resume", async ({ page }, testInfo) => {
+  const requests = await mockClassroom(page);
+  await chooseMaterials(page);
+  await page.getByRole("spinbutton", { name: "Time I have right now" }).fill("15");
+  await page.getByRole("button", { name: "Help me catch up →" }).click();
+  await expect(page.getByText("Your catch-up crew · 15 min window")).toBeVisible();
+  expect(requests.find((r) => r.path.endsWith("/turn"))?.body.catchUpMinutes).toBe(15);
+  await page.locator(".study-crew summary").click();
+  await expect(page.getByText("Waiting for an answer to check. No understanding assumed.")).toBeVisible();
+  await page.getByRole("textbox", { name: "Your answer or question" }).fill("Food");
+  await page.getByRole("button", { name: "Send ↗", exact: true }).click();
+  await expect(page.getByText("Revisit first: Energy versus food")).toBeVisible();
+  await expect(page.getByText("Revisit energy before the glucose exercise.")).toBeVisible();
+  await page.locator(".study-crew").getByRole("button", { name: "↗ Light notes", exact: true }).first().click();
+  await expect(page.locator("#passage-passage-a")).toBeFocused();
+  const layout = await page.locator(".study-split").boundingBox();
+  const voice = await page.locator(".study-voice-host").boundingBox();
+  expect(voice!.y + voice!.height).toBeLessThanOrEqual(layout!.y + layout!.height + 1);
+  await page.locator(".study-crew summary").click();
+  await page.screenshot({ path: testInfo.outputPath("catch-up-crew.png"), fullPage: true });
+  await page.getByRole("button", { name: "← Materials", exact: true }).click();
+  await page.getByRole("button", { name: "Resume a lesson", exact: true }).click();
+  await page.getByRole("button", { name: "Photosynthesis", exact: true }).click();
+  await page.locator(".study-crew summary").click();
+  await expect(page.getByText("Revisit first: Energy versus food")).toBeVisible();
+});
+
+test("dashboard builds a cited plan, remembers checkmarks and opens the tutor at the source", async ({ page }, testInfo) => {
+  const requests = await mockClassroom(page);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Let’s get you caught up." })).toBeVisible();
+  await page.getByLabel("Time you have").selectOption("25");
+  await page.getByRole("button", { name: "Build my plan" }).click();
+  await expect(page.getByRole("heading", { name: "Your catch-up plan", exact: true })).toBeVisible();
+  expect(requests.find(r => r.path.endsWith("/turn"))?.body.catchUpMinutes).toBe(25);
+  expect(requests.find(r => r.path === "/api/lessons" && r.method === "POST")?.body.posts).toEqual(posts.map(({ id, type }) => ({ id, type })));
+  await expect(page.getByText("20 min planned · 5 min breathing room")).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("catch-up-dashboard-desktop.png"), fullPage: true });
+  await page.getByLabel("Mark step 1 complete").check();
+  await expect(page.getByText("1 of 3 checked off")).toBeVisible();
+  await page.getByRole("button", { name: "Start step 1", exact: true }).click();
+  await expect(page.locator("#passage-passage-a")).toBeFocused();
+  await page.getByRole("button", { name: "Your catch-up plan", exact: true }).click();
+  await expect(page.getByLabel("Mark step 1 complete")).toBeChecked();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("catch-up-dashboard-mobile.png"), fullPage: true });
+  await page.getByRole("button", { name: /Give me a hint/ }).click();
+  await expect(page.getByText("Sunlight gives plants energy to make food. Find the glucose in your teacher’s notes.", { exact: true })).toBeVisible();
+  const hint = requests.filter(r => r.path.endsWith("/turn")).at(-1)!.body;
+  expect(hint.intent).toBe("question");
+  expect(hint.text).toContain("without solving the assignment");
+  await page.reload();
+  await page.getByRole("button", { name: "Resume a lesson", exact: true }).click();
+  await page.getByRole("button", { name: "Photosynthesis", exact: true }).click();
+  await page.getByRole("button", { name: "Your catch-up plan", exact: true }).click();
+  await expect(page.getByLabel("Mark step 1 complete")).toBeChecked();
+  await page.getByRole("button", { name: "Resume a lesson", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Done", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Your catch-up plan", exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem("afterclass:checklist:lesson-1"))).toBeNull();
+  await page.getByRole("button", { name: "Build my plan" }).click();
+  await page.getByLabel("Mark step 1 complete").check();
+  await page.getByRole("button", { name: "My learning", exact: true }).click();
+  await page.getByRole("button", { name: "Delete all my learning data", exact: true }).click();
+  await page.getByRole("button", { name: "Delete everything", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Your catch-up plan", exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem("afterclass:checklist:lesson-1"))).toBeNull();
+});
+
+test("dashboard date filters exclude old selected posts, retain unknown dates and retry the same turn", async ({ page }) => {
+  const requests = await mockClassroom(page);
+  await page.route("**/api/courses/course-1/posts", route => route.fulfill({ json: {
+    posts: [{ ...posts[0], publishedAt: "2026-01-01T00:00:00Z" }, posts[1]], topics: [], warnings: [],
+  } }));
+  await page.goto("/");
+  await page.getByLabel("Updates since").fill("2025-01-01");
+  await page.getByRole("checkbox").first().check();
+  await page.getByLabel("Updates since").fill("2026-09-01");
+  await expect(page.getByText("Light and leaves", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Making glucose", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Study these together →", exact: true })).toBeDisabled();
+  const attempts: unknown[] = [];
+  await page.route("**/api/lessons/lesson-1/turn", async route => {
+    attempts.push(route.request().postDataJSON());
+    if (attempts.length === 1) await route.fulfill({ status: 503, json: { error: "Planner unavailable. Please retry." } });
+    else await route.fallback();
+  });
+  await page.getByRole("button", { name: "Build my plan" }).click();
+  await expect(page.getByText("Planner unavailable. Please retry.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Your catch-up plan", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Updates since")).toHaveValue("2026-09-01");
+  expect(attempts[0]).toEqual(attempts[1]);
+  const creates = requests.filter(r => r.path === "/api/lessons" && r.method === "POST");
+  expect(creates).toHaveLength(1);
+  expect(creates[0]!.body.posts).toEqual([{ id: "post-b", type: "courseWorkMaterials" }]);
+});
+
+test("unavailable services retain a usable connection screen without fabricated class content", async ({ page }) => {
+  await page.route("**/api/**", route => route.fulfill({ status: 503, json: { error: "Service unavailable" } }));
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Let’s get you caught up." })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open Google Classroom ↗" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "My learning", exact: true })).toBeDisabled();
+  await expect(page.locator(".catchup-update")).toHaveCount(0);
 });
