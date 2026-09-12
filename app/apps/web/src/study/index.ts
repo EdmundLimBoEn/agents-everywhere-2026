@@ -65,30 +65,38 @@ export function mountStudy(
     dashboard: ReturnType<typeof mountDashboard> | undefined;
   const boards = new Map<
     string,
-    { draft: Board; pending: Promise<void>; error: unknown }
+    { draft: Board; pending: Promise<void>; error: unknown; saving: boolean }
   >();
   function saveBoard(id: string, board: Board) {
     let state = boards.get(id);
     if (!state) {
-      state = { draft: board, pending: Promise.resolve(), error: null };
+      state = { draft: board, pending: Promise.resolve(), error: null, saving: false };
       boards.set(id, state);
     }
     state.draft = structuredClone(board);
-    const snapshot = structuredClone(board),
-      entry = state;
+    if (state.saving) return state.pending;
+    state.saving = true;
+    const entry = state;
     entry.pending = entry.pending
       .catch(() => {})
       .then(async () => {
         try {
-          await api(`/api/lessons/${id}/board`, {
-            method: "PUT",
-            body: snapshot,
-          });
+          // Keep one write in flight and replace queued intermediate scenes with the latest draft.
+          let snapshot: Board;
+          do {
+            snapshot = entry.draft;
+            await api(`/api/lessons/${id}/board`, {
+              method: "PUT",
+              body: snapshot,
+            });
+          } while (snapshot !== entry.draft);
           entry.error = null;
           if (lesson?.id === id) lesson.board = entry.draft;
         } catch (error) {
           entry.error = error;
           throw error;
+        } finally {
+          entry.saving = false;
         }
       });
     void entry.pending.catch(() => {});
@@ -730,8 +738,10 @@ export function mountStudy(
       },
       `study-tab study-tab-board ${boardOpen ? "active" : ""}`,
     );
+    boardTab.title = "Draw with Excalidraw";
     boardTab.setAttribute("aria-pressed", String(boardOpen));
-    tabs.append(boardTab);
+    // First and sticky, so it stays reachable however many source tabs there are.
+    tabs.prepend(boardTab);
     reader.append(tabs);
     const paper = el("div", "", "study-paper");
     reader.append(paper);

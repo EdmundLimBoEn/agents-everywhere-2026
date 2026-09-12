@@ -282,6 +282,36 @@ test("failed teaching request preserves the lesson and offers a working retry", 
   ).toBeVisible();
 });
 
+test("whiteboard combines queued edits before teaching without losing the latest drawing", async ({ page }) => {
+  const requests = await mockClassroom(page);
+  await chooseMaterials(page);
+  let finishSave!: () => void;
+  const pending = new Promise<void>(resolve => { finishSave = resolve; });
+  let saves = 0;
+  await page.route("**/api/lessons/lesson-1/board", async route => {
+    saves++;
+    await pending;
+    await route.fallback();
+  });
+  await page.getByRole("button", { name: "Whiteboard", exact: true }).click();
+  for (const text of ["First idea", "Second idea", "Latest idea"]) {
+    await page.getByRole("textbox", { name: "Whiteboard text" }).fill(text);
+    await page.getByRole("button", { name: "Add text", exact: true }).click();
+    await expect(page.getByText("Saving…", { exact: true })).toBeVisible();
+  }
+  await expect.poll(() => saves).toBe(1);
+  await page.getByRole("textbox", { name: "Your answer or question" }).fill("Explain my drawing");
+  await page.getByRole("button", { name: "Send ↗", exact: true }).click();
+  expect(requests.filter(r => r.path.endsWith("/turn"))).toHaveLength(0);
+  finishSave();
+  await expect(page.getByText("Your rectangle is the leaf. Light enters it from the side you marked.", { exact: true })).toBeVisible();
+  const turnIndex = requests.findIndex(r => r.path.endsWith("/turn"));
+  const saved = requests.slice(0, turnIndex).filter(r => r.path.endsWith("/board"));
+  expect(saved).toHaveLength(2);
+  expect(saved.at(-1)!.body.scene.elements.filter((e: { type: string }) => e.type === "text").map((e: { text: string }) => e.text))
+    .toEqual(["First idea", "Second idea", "Latest idea"]);
+});
+
 test("teaching waits for a pending whiteboard save and preserves failed draft on tab changes", async ({
   page,
 }) => {
@@ -593,5 +623,34 @@ test("Excalidraw draws native shapes, restores scenes and loads local fonts", as
   await expect(page.locator(".excalidraw canvas").first()).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.locator(".excalidraw canvas").first()).toBeVisible();
+  await expect.poll(async () => (await canvas.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(350);
   await page.screenshot({ path: testInfo.outputPath("excalidraw-mobile.png"), fullPage: true });
+});
+
+
+test("Whiteboard remains discoverable with many source documents", async ({ page }) => {
+  await mockClassroom(page);
+  const lesson = lessonFixture();
+  lesson.sources = Array.from({ length: 12 }, (_, index) => ({
+    ...lesson.sources[0], id: `source-${index}`, title: `Classroom reading material ${index + 1}`,
+  }));
+  await page.route("**/api/lessons", route => route.fulfill({ json: lesson }));
+  await chooseMaterials(page);
+  const button = page.getByRole("button", { name: "Whiteboard", exact: true });
+  const tabs = page.locator(".study-tabs");
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    // Visibility alone passes for buttons clipped by an overflowing tab bar.
+    const bounds = (await button.boundingBox())!;
+    const bar = (await tabs.boundingBox())!;
+    expect(bounds.x).toBeGreaterThanOrEqual(bar.x);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(bar.x + bar.width);
+    await button.click();
+    await expect(button).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".excalidraw canvas").first()).toBeVisible();
+    await tabs.evaluate(element => { element.scrollLeft = element.scrollWidth; });
+    const scrolled = (await button.boundingBox())!;
+    expect(scrolled.x).toBeGreaterThanOrEqual(bar.x);
+    expect(scrolled.x + scrolled.width).toBeLessThanOrEqual(bar.x + bar.width);
+  }
 });

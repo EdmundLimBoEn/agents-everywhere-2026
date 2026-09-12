@@ -209,7 +209,7 @@ html, body { margin: 0; }
   padding: 11px 14px;
   color: #4a5d51;
 }
-.study-tabs .study-tab-board { flex-shrink: 0; margin-left: auto; }
+.study-tabs .study-tab-board { flex-shrink: 0; position: sticky; left: 0; z-index: 1; background: #e9eadf; }
 .study-tabs .study-tab.active { background: #fffdf7; color: var(--ink); box-shadow: inset 0 3px var(--green); font-weight: 600; }
 .study-paper {
   position: relative;
@@ -485,6 +485,10 @@ html, body { margin: 0; }
 .study-board-ask button { font-size: 12px; padding: 8px 12px; white-space: nowrap; }
 .study-board-ask .study-meta { flex-basis: 100%; font-size: 11px; }
 .study-excalidraw { flex: 1; min-height: 0; width: 100%; position: relative; }
+@media (max-width: 650px) {
+  .study-reader:has([data-board-host]) { height: auto; }
+  .study-excalidraw { flex: none; height: 420px; }
+}
 .study-board { width: 100%; min-height: 350px; touch-action: none; background-image: radial-gradient(#bdc5b6 1px, transparent 1px); background-size: 20px 20px; }
 
 @keyframes catchup-spin { to { transform: rotate(360deg); } }
