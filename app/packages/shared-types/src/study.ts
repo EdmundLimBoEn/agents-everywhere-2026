@@ -4,6 +4,8 @@ export type ClassroomPost = PostRef & {
   courseId: string;
   title: string;
   description: string;
+  state?: string;
+  canManage?: boolean;
   topicId?: string;
   dueAt?: string;
   publishedAt?: string;
@@ -61,7 +63,15 @@ export type BoardItem = {
   text: string;
 };
 export type BoardStroke = { points: { x: number; y: number }[]; color: string };
-export type Board = { items: BoardItem[]; strokes: BoardStroke[] };
+export type Board = {
+  items: BoardItem[];
+  strokes: BoardStroke[];
+  scene?: {
+    elements: Record<string, unknown>[];
+    files: Record<string, unknown>;
+    sourceItems: BoardItem[];
+  };
+};
 export type Evidence = {
   id: string;
   lessonId: string;
@@ -97,6 +107,7 @@ export type Lesson = {
   phase: LessonPhase;
   classroomPosts?: ClassroomPost[];
   catchUp?: CatchUpState;
+  assignment?: AssignmentState;
   messages: LessonMessage[];
   board: Board;
   evidence: Evidence[];
@@ -142,4 +153,33 @@ export type CatchUpState = {
   scout: CrewNote;
   review: (CrewNote & { assessment: TutorReply["assessment"]; prerequisite: string | null }) | null;
   plan: { reason: string; steps: (CrewNote & { minutes: number })[] };
+};
+
+export type AssignmentRequirement = { id: string; text: string; citations: Citation[] };
+export type AssignmentReview = {
+  summary: string;
+  criteria: { requirementId: string; status: "addressed" | "partial" | "missing" | "unclear"; feedback: string; draftQuote: string; citations: Citation[] }[];
+  nextAction: string;
+};
+export type AssignmentState = {
+  assignmentId: string;
+  goal: string;
+  requirements: AssignmentRequirement[];
+  requirementsStale?: boolean;
+  rubricAvailable: boolean;
+  materials: { sourceId: string; reason: string }[];
+  blocker: string | null;
+  nextAction: string;
+  draft: string;
+  help: { text: string; citations: Citation[] } | null;
+  review: AssignmentReview | null;
+  updatedAt: string;
+};
+export type AssignmentInput = {
+  action: "prepare" | "save" | "help" | "review";
+  assignmentId?: string;
+  draft?: string;
+  question?: string;
+  revision: number;
+  requestId: string;
 };

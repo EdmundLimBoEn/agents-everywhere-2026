@@ -13,6 +13,21 @@ const CLASSROOM = "https://classroom.googleapis.com/v1";
 const DRIVE = "https://www.googleapis.com/drive/v3/files";
 const DOC = "application/vnd.google-apps.document";
 const PDF = "application/pdf";
+const EXPORTABLE = [DOC, "application/vnd.google-apps.spreadsheet", "application/vnd.google-apps.presentation", "application/vnd.google-apps.drawing"];
+const FILE_TYPES = new Set([PDF, ...EXPORTABLE, "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-powerpoint", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "application/vnd.oasis.opendocument.text", "application/rtf", "text/plain", "text/markdown", "text/csv", "text/tab-separated-values", "image/png", "image/jpeg", "image/webp"]);
+export type FileReader = (bytes: Uint8Array, mimeType: string, name: string) => Promise<Passage[]>;
+// Only extract IDs from known Google links; never follow arbitrary URLs with a Google token.
+export function driveLink(value: string): string | undefined {
+  try {
+    const u = new URL(value);
+    if (u.protocol !== "https:" || u.port || u.username || u.password) return;
+    const match = u.hostname === "docs.google.com"
+      ? u.pathname.match(/^\/(?:document|spreadsheets|presentation)\/d\/([\w-]+)(?:\/|$)/)
+      : u.hostname === "drive.google.com" ? u.pathname.match(/^\/file\/d\/([\w-]+)(?:\/|$)/) : null;
+    const fileId = match?.[1] || (u.hostname === "drive.google.com" && u.pathname === "/open" ? u.searchParams.get("id") : undefined);
+    return fileId && /^[\w-]{1,200}$/.test(fileId) ? fileId : undefined;
+  } catch { return; }
+}
 const TYPES: PostType[] = [
   "courseWork",
   "courseWorkMaterials",
@@ -40,26 +55,47 @@ export class GoogleClassroom {
   constructor(
     private token: string,
     private fetcher: typeof fetch = fetch,
+    private readFile?: FileReader,
   ) {}
 
-  private async bytes(url: string): Promise<Uint8Array> {
+  private async bytes(url: string, init: RequestInit = {}): Promise<Uint8Array> {
     let response: Response;
     try {
       response = await this.fetcher(url, {
-        headers: { Authorization: `Bearer ${this.token}` },
+        ...init,
+        headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json", ...init.headers },
         signal: AbortSignal.timeout(20_000),
         redirect: "error",
       });
     } catch {
       throw new Error("Google request timed out or could not connect");
     }
+    if (response.status === 403) {
+      const body = await response.json().catch(() => null);
+      const error = body?.error;
+      const reasons = [
+        ...(Array.isArray(error?.details) ? error.details : []),
+        ...(Array.isArray(error?.errors) ? error.errors : []),
+      ].map((detail) => detail?.reason);
+      let message = "Google denied access to this resource";
+      if (reasons.some((r) => ["ACCESS_TOKEN_SCOPE_INSUFFICIENT", "insufficientPermissions"].includes(r)))
+        message = "Google authorization is missing a required permission. Disconnect Google in extension settings, then reconnect and approve the requested permissions.";
+      else if (reasons.some((r) => ["SERVICE_DISABLED", "accessNotConfigured"].includes(r))) {
+        const service = new URL(url).hostname === "classroom.googleapis.com"
+          ? "Google Classroom API" : new URL(url).hostname === "docs.googleapis.com"
+            ? "Google Docs API" : "Google Drive API";
+        message = `Enable the ${service} in the Google Cloud project used by this extension's OAuth client, then retry.`;
+      } else if (reasons.some((r) => ["DOMAIN_POLICY", "domainPolicy"].includes(r)))
+        message = "Your school administrator has restricted this app's access. Ask them to allow the app and its requested Google permissions.";
+      else if (new URL(url).hostname === "classroom.googleapis.com" && /\/courseWork(?:\/|$)/.test(new URL(url).pathname))
+        message += ". Check that the connected Google account is enrolled as a student in this class. This extension requests student coursework access; a teacher account needs teacher coursework permission. School policy may also restrict access.";
+      throw new GoogleError(message, response.status);
+    }
     if (!response.ok)
       throw new GoogleError(
         response.status === 401
           ? "Google authorization expired; reconnect your account"
-          : response.status === 403
-            ? "Google denied access to this resource"
-            : response.status === 404
+          : response.status === 404
               ? "Google resource is unavailable"
               : `Google request failed (${response.status})`,
         response.status,
@@ -68,6 +104,7 @@ export class GoogleClassroom {
       await response.body?.cancel();
       throw new Error("File exceeds 15 MB limit");
     }
+    if (response.status === 204) return new Uint8Array();
     const reader = response.body?.getReader();
     if (!reader) throw new Error("Google returned an empty response");
     const chunks: Uint8Array[] = [];
@@ -94,8 +131,9 @@ export class GoogleClassroom {
     }
     return result;
   }
-  private async json(url: string): Promise<GoogleObject> {
-    return JSON.parse(new TextDecoder().decode(await this.bytes(url)));
+  private async json(url: string, init: RequestInit = {}): Promise<GoogleObject> {
+    const bytes = await this.bytes(url, init);
+    return bytes.length ? JSON.parse(new TextDecoder().decode(bytes)) : {};
   }
 
   async authenticate(
@@ -172,11 +210,13 @@ export class GoogleClassroom {
         raw.text?.split("\n")[0]?.slice(0, 120) ||
         "Class announcement",
       description: raw.description || raw.text || "",
+      state: raw.state,
+      canManage: raw.associatedWithDeveloper === true,
       topicId: raw.topicId,
       publishedAt: raw.creationTime,
       ...(raw.dueDate ? { dueAt: new Date(Date.UTC(raw.dueDate.year, raw.dueDate.month - 1, raw.dueDate.day, raw.dueTime?.hours || 0, raw.dueTime?.minutes || 0, raw.dueTime?.seconds || 0)).toISOString() } : {}),
       alternateLink: raw.alternateLink,
-      attachments: (raw.materials ?? []).flatMap((m: GoogleObject) =>
+      attachments: [...(raw.materials ?? []), ...(String(raw.description || raw.text || "").match(/https:\/\/[^\s<>"”]+/g) || []).map(url => ({ link: { url, title: "Linked Drive document" } }))].flatMap((m: GoogleObject) =>
         m.driveFile?.driveFile?.id
           ? [
               {
@@ -184,7 +224,7 @@ export class GoogleClassroom {
                 title: m.driveFile.driveFile.title || "Class document",
               },
             ]
-          : [],
+          : driveLink(m.link?.url || "") ? [{ id: driveLink(m.link.url)!, title: m.link.title || "Linked Drive document" }] : [],
       ),
     };
   }
@@ -245,8 +285,8 @@ export class GoogleClassroom {
     const meta = await this.json(
       `${DRIVE}/${id(fileId)}?fields=id,name,mimeType,size,capabilities(canDownload)&supportsAllDrives=true`,
     );
-    if (![DOC, PDF].includes(meta.mimeType))
-      throw new Error("Only Google Docs and PDF attachments are supported");
+    if (!FILE_TYPES.has(meta.mimeType))
+      throw new Error(`Unsupported file type: ${meta.mimeType}. Use Docs, Sheets, Slides, PDF, Word, Excel, PowerPoint, text, CSV, or an image.`);
     if (Number(meta.size) > MAX_BYTES)
       throw new Error("File exceeds 15 MB limit");
     return meta;
@@ -258,7 +298,7 @@ export class GoogleClassroom {
     if (meta.capabilities?.canDownload === false)
       throw new Error("The owner has disabled downloading this document");
     return this.bytes(
-      meta.mimeType === DOC
+      EXPORTABLE.includes(meta.mimeType)
         ? `${DRIVE}/${id(fileId)}/export?mimeType=application%2Fpdf`
         : `${DRIVE}/${id(fileId)}?alt=media&supportsAllDrives=true`,
     );
@@ -272,7 +312,43 @@ export class GoogleClassroom {
     const posts = await this.selected(courseId, refs);
     if (!posts.some((p) => p.attachments.some((a) => a.id === fileId)))
       throw new Error("File is not attached to the selected Classroom posts");
-    return this.download(fileId, await this.metadata(fileId));
+    const meta = await this.metadata(fileId);
+    if (meta.mimeType !== PDF && !EXPORTABLE.includes(meta.mimeType)) throw new Error("This file has no PDF preview; open the original instead");
+    return this.download(fileId, meta);
+  }
+  async files(query = "") {
+    const q = `trashed = false${query ? ` and name contains '${query.replaceAll("\\", "\\\\").replaceAll("'", "\\'")}'` : ""}`;
+    return this.list(`${DRIVE}?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,mimeType,webViewLink)&supportsAllDrives=true&includeItemsFromAllDrives=true`, "files");
+  }
+  async document(fileId: string) {
+    return this.json(`https://docs.googleapis.com/v1/documents/${id(fileId)}?includeTabsContent=true`);
+  }
+  async createDocument(title: string, text: string) {
+    // Drive import creates a populated Google Doc in one request, avoiding an orphan empty document.
+    const boundary = `afterclass_${crypto.randomUUID()}`;
+    const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: title, mimeType: DOC })}\r\n--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n${text}\r\n--${boundary}--`;
+    return this.json("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink", { method: "POST", headers: { "Content-Type": `multipart/related; boundary=${boundary}` }, body });
+  }
+  async updateDocument(fileId: string, operation: { name?: string; append?: string; revisionId?: string; tabId?: string; trashed?: boolean }) {
+    if (operation.append !== undefined) {
+      return this.json(`https://docs.googleapis.com/v1/documents/${id(fileId)}:batchUpdate`, { method: "POST", body: JSON.stringify({
+        writeControl: { requiredRevisionId: operation.revisionId },
+        requests: [{ insertText: { endOfSegmentLocation: operation.tabId ? { tabId: operation.tabId } : {}, text: operation.append } }],
+      }) });
+    }
+    return this.json(`${DRIVE}/${id(fileId)}?supportsAllDrives=true&fields=id,name,trashed,webViewLink`, { method: "PATCH", body: JSON.stringify(operation.name !== undefined ? { name: operation.name } : { trashed: operation.trashed }) });
+  }
+  async assignment(courseId: string, assignmentId: string) {
+    return this.json(`${CLASSROOM}/courses/${id(courseId)}/courseWork/${id(assignmentId)}`);
+  }
+  async saveAssignment(courseId: string, fields: GoogleObject, assignmentId?: string) {
+    const url = `${CLASSROOM}/courses/${id(courseId)}/courseWork`;
+    if (assignmentId) {
+      const current = await this.assignment(courseId, assignmentId);
+      if (!current.associatedWithDeveloper) throw new GoogleError("Only assignments created by this application's Google project can be edited here. Open Classroom to edit this assignment.", 403);
+      return this.json(`${url}/${id(assignmentId)}?updateMask=${Object.keys(fields).join(",")}`, { method: "PATCH", body: JSON.stringify(fields) });
+    }
+    return this.json(url, { method: "POST", body: JSON.stringify({ ...fields, workType: "ASSIGNMENT" }) });
   }
   async loadSources(
     courseId: string,
@@ -285,6 +361,17 @@ export class GoogleClassroom {
     const posts = await this.selected(courseId, refs);
     const sources: StudySource[] = [];
     const failures: SourceFailure[] = [];
+    let total = 0;
+    for (const post of posts.filter(p => p.type !== "courseWork")) {
+      const text = [post.title, post.description].filter(Boolean).join("\n\n").trim();
+      if (!text) continue;
+      if (text.length > 250_000 || total + text.length > 600_000) throw new Error("Post text exceeds lesson text limit");
+      total += text.length;
+      sources.push({ id: `post-${post.type}-${post.id}`, title: `${post.title} (post text)`, mimeType: "text/plain", postIds: [post.id],
+        passages: splitPassage({ id: `post-${post.type}-${post.id}-text`, text }),
+        originalUrl: post.alternateLink || `https://classroom.google.com/c/${courseId}`, pdfAvailable: false });
+
+    }
     const attachments = new Map<string, { title: string; postIds: string[] }>();
     for (const post of posts)
       for (const a of post.attachments) {
@@ -295,29 +382,103 @@ export class GoogleClassroom {
       }
     if (attachments.size > 40)
       throw new Error("Select fewer posts: at most 40 attachments per lesson");
-    let total = 0;
+    const addSource = (source: StudySource) => {
+      const size = source.passages.reduce((n, p) => n + p.text.length, 0);
+      if (!size) throw new Error("No readable text found");
+      if (size > 250_000 || total + size > 600_000)
+        throw new Error("Document exceeds lesson text limit; select a shorter document");
+      total += size;
+      sources.push(source);
+    };
+    for (const post of posts.filter((p) => p.type === "courseWork")) {
+      const classroomLink = post.alternateLink ? URL.parse(post.alternateLink) : null;
+      const originalUrl = classroomLink?.origin === "https://classroom.google.com"
+        ? classroomLink.href : "https://classroom.google.com";
+      const source = {
+        id: `classroom-courseWork-${post.id}`,
+        title: `Assignment instructions: ${post.title}`,
+        mimeType: "text/plain",
+        postIds: [post.id],
+        passages: splitPassage({ id: "instructions", text: [post.title, post.description].filter(Boolean).join("\n\n") }),
+        originalUrl,
+        pdfAvailable: false,
+      };
+      // Assignment instructions get the text budget before optional attachments.
+      addSource(source);
+      try {
+        const rubrics = await this.list(`${CLASSROOM}/courses/${courseId}/courseWork/${post.id}/rubrics`, "rubrics");
+        if (!rubrics.length) throw new Error("No teacher rubric is available for this assignment");
+        for (const rubric of rubrics) {
+          if (rubric.courseId !== courseId || rubric.courseWorkId !== post.id)
+            throw new Error("Rubric does not belong to the selected assignment");
+          addSource({
+            ...source,
+            id: `classroom-rubric-${post.id}-${id(rubric.id)}`,
+            title: `Teacher rubric: ${post.title}`,
+            passages: (rubric.criteria ?? []).flatMap((criterion: GoogleObject) => splitPassage({
+              id: `criterion-${id(criterion.id)}`,
+              text: [
+                `Teacher rubric criterion: ${criterion.title || "Untitled criterion"}`,
+                criterion.description,
+                ...(criterion.levels ?? []).map((level: GoogleObject) => [
+                  level.title,
+                  level.description,
+                  typeof level.points === "number" ? `${level.points} points` : "",
+                ].filter(Boolean).join(" — ")),
+              ].filter(Boolean).join("\n"),
+            })),
+          });
+        }
+      } catch (error) {
+        if (error instanceof GoogleError && error.status === 401) throw error;
+        failures.push({
+          id: `classroom-rubric-${post.id}`,
+          title: `Teacher rubric: ${post.title}`,
+          reason: `Rubric unavailable: ${error instanceof Error ? error.message : "Unable to read rubric"}`,
+        });
+      }
+    }
     for (const [fileId, attachment] of attachments) {
       try {
         const meta = await this.metadata(fileId);
         let passages: Passage[];
-        if (meta.mimeType === DOC)
-          passages = documentPassages(
-            await this.json(
-              `https://docs.googleapis.com/v1/documents/${id(fileId)}?includeTabsContent=true`,
-            ),
-          );
-        else passages = await pdfPassages(await this.download(fileId, meta));
+        if (meta.capabilities?.canDownload === false) throw new Error("The owner has disabled downloading this document");
+        if (meta.mimeType === DOC) {
+          passages = documentPassages(await this.json(`https://docs.googleapis.com/v1/documents/${id(fileId)}?includeTabsContent=true`));
+          if (this.readFile) {
+            try {
+              const bytes = await this.download(fileId, meta);
+              await pdfPassages(bytes.slice()); // Enforce the same PDF page limit on Workspace exports.
+              passages.push(...await this.readFile(bytes, PDF, `${meta.name || fileId}.pdf`));
+            }
+            catch (error) {
+              if (error instanceof GoogleError && error.status === 401) throw error;
+              failures.push({ id: fileId, title: meta.name || attachment.title, reason: `Visual reading unavailable: ${error instanceof Error ? error.message : "file reader failed"}` });
+            }
+          }
+        } else {
+          const bytes = await this.download(fileId, meta);
+          const mime = EXPORTABLE.includes(meta.mimeType) ? PDF : meta.mimeType;
+          const name = EXPORTABLE.includes(meta.mimeType) ? `${meta.name || fileId}.pdf` : meta.name || attachment.title;
+          if (mime.startsWith("text/")) passages = splitPassage({ id: "text", text: new TextDecoder().decode(bytes).trim() });
+          else if (mime === PDF) {
+            passages = await pdfPassages(bytes.slice());
+            if (this.readFile) {
+              try { passages.push(...await this.readFile(bytes, mime, name)); }
+              catch (error) {
+                if (!passages.length) throw error;
+                failures.push({ id: fileId, title: name, reason: `Visual reading unavailable: ${error instanceof Error ? error.message : "file reader failed"}` });
+              }
+            } else failures.push({ id: fileId, title: name, reason: "Visual reading is not configured; only the PDF text layer was read." });
+          } else if (this.readFile) passages = await this.readFile(bytes, mime, name);
+          else throw new Error("Configure a vision-capable OPENAI_MODEL and OPENAI_API_KEY to read Office files and images");
+        }
         const size = passages.reduce((n, p) => n + p.text.length, 0);
         if (!size)
           throw new Error(
-            "No readable text found. Scanned PDFs require a text layer",
+            "No readable content found. Scanned PDFs require the configured visual reader",
           );
-        if (size > 250_000 || total + size > 600_000)
-          throw new Error(
-            "Document exceeds lesson text limit; select a shorter document",
-          );
-        total += size;
-        sources.push({
+        addSource({
           id: fileId,
           title: meta.name || attachment.title,
           mimeType: meta.mimeType,
@@ -327,7 +488,7 @@ export class GoogleClassroom {
             meta.mimeType === DOC
               ? `https://docs.google.com/document/d/${fileId}/edit`
               : `https://drive.google.com/file/d/${fileId}/view`,
-          pdfAvailable: meta.capabilities?.canDownload !== false,
+          pdfAvailable: (meta.mimeType === PDF || EXPORTABLE.includes(meta.mimeType)) && meta.capabilities?.canDownload !== false,
         });
       } catch (error) {
         if (error instanceof GoogleError && error.status === 401) throw error;
@@ -375,11 +536,19 @@ export function documentPassages(document: GoogleObject): Passage[] {
         `tab-${tab.tabProperties?.tabId || "main"}`,
         tab.tabProperties?.title,
       );
+      for (const kind of ["headers", "footers", "footnotes"])
+        for (const [partId, part] of Object.entries(tab.documentTab?.[kind] || {}))
+          content((part as GoogleObject).content || [], `tab-${tab.tabProperties?.tabId || "main"}-${kind}-${partId}`, tab.tabProperties?.title);
       tabs(tab.childTabs || []);
     }
   };
   if (document.tabs?.length) tabs(document.tabs);
-  else content(document.body?.content || [], "body");
+  else {
+    content(document.body?.content || [], "body");
+    for (const kind of ["headers", "footers", "footnotes"])
+      for (const [partId, part] of Object.entries(document[kind] || {}))
+        content((part as GoogleObject).content || [], `${kind}-${partId}`);
+  }
   return passages;
 }
 

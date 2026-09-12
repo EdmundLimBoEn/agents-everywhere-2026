@@ -824,6 +824,425 @@
           }
         ]
       }
+    },
+    "/api/author/draft": {
+      "post": {
+        "summary": "Generate a reviewable draft; no Google writes",
+        "operationId": "postApiAuthorDraft",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorDraft"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/drive/search": {
+      "post": {
+        "summary": "Search authorized Drive files by name",
+        "operationId": "postApiDriveSearch",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents": {
+      "post": {
+        "summary": "Create a populated Google Doc by importing plain text",
+        "operationId": "postApiDocuments",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{documentId}": {
+      "get": {
+        "summary": "Read a Google Doc including tabs, passages and revision",
+        "operationId": "getApiDocumentsDocumentid",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          }
+        ]
+      },
+      "patch": {
+        "summary": "Rename, append with revision protection, trash or restore a document",
+        "operationId": "patchApiDocumentsDocumentid",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentUpdate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/courses/{courseId}/assignments": {
+      "post": {
+        "summary": "Create an assignment with Drive attachments; defaults to DRAFT",
+        "operationId": "postApiCoursesCourseidAssignments",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/courses/{courseId}/assignments/{assignmentId}": {
+      "get": {
+        "summary": "Read assignment for review",
+        "operationId": "getApiCoursesCourseidAssignmentsAssignmentid",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "assignmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          }
+        ]
+      },
+      "patch": {
+        "summary": "Update supported fields of assignments created by this Google project; attachments cannot be changed",
+        "operationId": "patchApiCoursesCourseidAssignmentsAssignmentid",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "assignmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentUpdate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/lessons/{lessonId}/assignment": {
+      "post": {
+        "summary": "Prepare, save, get help with, or review an assignment",
+        "operationId": "postApiLessonsLessonidAssignment",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Lesson"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Returns the latest lesson with assignment state. Google source access is refreshed before all actions, including idempotent retries. Uses the same bearer authentication, ownership, revision, and concurrency checks as teaching turns. An identical request ID and normalized payload retries idempotently; request IDs cannot be reused across teaching and assignment actions. save works without model configuration or a provider call. prepare/help/review require a configured model and readable sources. Returns 409 for stale revision, concurrent update, or conflicting request ID; 422 for an unavailable selected courseWork post or a review without a draft; 503 for missing model configuration. Never submits to Classroom or writes Google documents.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "lessonId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -988,6 +1407,12 @@
           "publishedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "state": {
+            "type": "string"
+          },
+          "canManage": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -1204,6 +1629,39 @@
               ]
             },
             "maxItems": 300
+          },
+          "scene": {
+            "type": "object",
+            "description": "Embedded Excalidraw scene. Board requests are limited to 10 MB.",
+            "required": [
+              "elements",
+              "files",
+              "sourceItems"
+            ],
+            "properties": {
+              "elements": {
+                "type": "array",
+                "maxItems": 2000,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "files": {
+                "type": "object",
+                "maxProperties": 100,
+                "additionalProperties": {
+                  "type": "object"
+                }
+              },
+              "sourceItems": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "$ref": "#/components/schemas/BoardItem"
+                }
+              }
+            }
           }
         },
         "required": [
@@ -1496,6 +1954,9 @@
             "items": {
               "$ref": "#/components/schemas/Post"
             }
+          },
+          "assignment": {
+            "$ref": "#/components/schemas/AssignmentState"
           }
         },
         "required": [
@@ -1695,6 +2156,433 @@
           "review",
           "plan"
         ]
+      },
+      "AuthorDraft": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "lessonId": {
+            "type": "string"
+          },
+          "documentId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "additionalProperties": false
+      },
+      "DocumentCreate": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 100000
+          }
+        },
+        "required": [
+          "title",
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "DocumentUpdate": {
+        "description": "Exactly one of name, append, or trashed. Appending requires a fresh revisionId and optionally a tabId. Existing content is preserved.",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "append": {
+            "type": "string"
+          },
+          "trashed": {
+            "type": "boolean"
+          },
+          "revisionId": {
+            "type": "string"
+          },
+          "tabId": {
+            "type": "string"
+          }
+        }
+      },
+      "AssignmentUpdate": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 3000
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "PUBLISHED",
+              "DELETED"
+            ]
+          },
+          "dueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "maxPoints": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "topicId": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "AssignmentCreate": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 3000
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "PUBLISHED",
+              "DELETED"
+            ]
+          },
+          "dueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "maxPoints": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "topicId": {
+            "type": "string"
+          },
+          "attachments": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "shareMode": {
+                  "type": "string",
+                  "enum": [
+                    "VIEW",
+                    "EDIT",
+                    "STUDENT_COPY"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "shareMode"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false
+      },
+      "AssignmentRequirement": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "citations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "citations"
+        ]
+      },
+      "AssignmentReview": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "string"
+          },
+          "criteria": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "requirementId": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "addressed",
+                    "partial",
+                    "missing",
+                    "unclear"
+                  ]
+                },
+                "feedback": {
+                  "type": "string"
+                },
+                "draftQuote": {
+                  "type": "string",
+                  "description": "If nonempty, an exact substring of the reviewed draft; addressed/partial claims require draft evidence."
+                },
+                "citations": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Citation"
+                  }
+                }
+              },
+              "required": [
+                "requirementId",
+                "status",
+                "feedback",
+                "draftQuote",
+                "citations"
+              ]
+            }
+          },
+          "nextAction": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "summary",
+          "criteria",
+          "nextAction"
+        ],
+        "description": "One result for every prepared requirement, without duplicate or unknown requirement IDs. This is formative feedback, not a grade or submission approval."
+      },
+      "AssignmentState": {
+        "type": "object",
+        "properties": {
+          "assignmentId": {
+            "type": "string"
+          },
+          "goal": {
+            "type": "string"
+          },
+          "requirements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssignmentRequirement"
+            }
+          },
+          "rubricAvailable": {
+            "type": "boolean",
+            "description": "Whether an accessible teacher rubric was found; false does not authorize invented grading criteria."
+          },
+          "materials": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sourceId": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "sourceId",
+                "reason"
+              ]
+            }
+          },
+          "blocker": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nextAction": {
+            "type": "string"
+          },
+          "draft": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "help": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  },
+                  "citations": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Citation"
+                    }
+                  }
+                },
+                "required": [
+                  "text",
+                  "citations"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "review": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssignmentReview"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requirementsStale": {
+            "type": "boolean",
+            "description": "True after teacher instruction or rubric content changes. Derived help/review is cleared and the draft preserved. save remains available; prepare must refresh requirements before help/review."
+          }
+        },
+        "required": [
+          "assignmentId",
+          "goal",
+          "requirements",
+          "rubricAvailable",
+          "materials",
+          "blocker",
+          "nextAction",
+          "draft",
+          "help",
+          "review",
+          "updatedAt"
+        ],
+        "description": "Persisted assignment workspace. Citations resolve to current lesson passages and quote their exact text. Saving a changed draft clears prior review and help; saving unchanged text retains them. Changes to teacher instructions or rubric content mark requirements stale until prepare refreshes them, preserving the student draft."
+      },
+      "AssignmentInput": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "prepare",
+              "save",
+              "help",
+              "review"
+            ]
+          },
+          "assignmentId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "maxLength": 200
+          },
+          "draft": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "question": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "Optional blocker question for help; omitted or empty requests a contextual next hint."
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "requestId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "action",
+          "revision",
+          "requestId"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "action": {
+                  "const": "prepare"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "assignmentId"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "action": {
+                  "const": "save"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "draft"
+              ]
+            }
+          }
+        ],
+        "description": "prepare selects a courseWork post already included in the lesson. Other actions require a prepared workspace. Reuse requestId only with an identical payload for idempotent retries. revision must match the current lesson. Draft text is student-authored work; saving does not call the model."
       }
     }
   }

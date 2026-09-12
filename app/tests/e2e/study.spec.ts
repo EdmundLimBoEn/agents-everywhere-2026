@@ -205,13 +205,13 @@ test("profile preferences and editable whiteboard persist through API", async ({
     .fill("Light → energy → glucose");
   await page.getByRole("button", { name: "Add text", exact: true }).click();
   await expect(
-    page.locator("svg").getByText("Light → energy → glucose", { exact: true }),
+    page.locator(".excalidraw canvas").first(),
   ).toBeVisible();
   await expect
     .poll(() => requests.filter((r) => r.path.endsWith("/board")).length)
     .toBe(1);
   expect(
-    requests.find((r) => r.path.endsWith("/board"))?.body.items[0].text,
+    requests.find((r) => r.path.endsWith("/board"))?.body.scene.elements.find((e: { type: string }) => e.type === "text").text,
   ).toBe("Light → energy → glucose");
 });
 
@@ -296,11 +296,13 @@ test("teaching waits for a pending whiteboard save and preserves failed draft on
   await page.getByRole("button", { name: "Light notes", exact: true }).click();
   await page.getByRole("button", { name: "Whiteboard", exact: true }).click();
   await expect(
-    page.locator("svg").getByText("Keep this unsaved idea", { exact: true }),
+    page.locator(".excalidraw canvas").first(),
   ).toBeVisible();
   await page.unroute("**/api/lessons/lesson-1/board");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  expect(requests.filter(r => r.path.endsWith("/board")).at(-1)?.body.scene.elements
+    .some((e: { text?: string }) => e.text === "Keep this unsaved idea")).toBe(true);
 });
 
 
@@ -414,4 +416,55 @@ test("unavailable services retain a usable connection screen without fabricated 
   await expect(page.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "My learning", exact: true })).toBeDisabled();
   await expect(page.locator(".catchup-update")).toHaveCount(0);
+});
+
+test("Excalidraw draws native shapes, restores scenes and loads local fonts", async ({ page }, testInfo) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  const fonts: string[] = [];
+  page.on("response", response => {
+    if (response.url().includes(".woff2")) {
+      expect(response.ok()).toBe(true);
+      fonts.push(response.url());
+    }
+  });
+  const requests = await mockClassroom(page);
+  await chooseMaterials(page);
+  await page.getByRole("button", { name: "Teach me this topic →", exact: true }).click();
+  await page.getByRole("button", { name: "Whiteboard", exact: true }).click();
+  await expect(page.locator(".excalidraw canvas").first()).toBeVisible();
+  await page.getByTitle(/^Rectangle/).click();
+  const canvas = page.locator(".excalidraw canvas").last();
+  const bounds = (await canvas.boundingBox())!;
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + 200);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width / 2 + 80, bounds.y + 270, { steps: 3 });
+  await page.mouse.up();
+  await expect.poll(() => requests.filter(r => r.path.endsWith("/board")).at(-1)?.body.scene.elements
+    .some((e: { type: string; width: number }) => e.type === "rectangle" && e.width > 50)).toBe(true);
+  await page.getByRole("textbox", { name: "Whiteboard text" }).fill("Saved in this lesson");
+  await page.getByRole("button", { name: "Add text", exact: true }).click();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Light notes", exact: true }).click();
+  await page.getByRole("button", { name: "Whiteboard", exact: true }).click();
+  await expect(page.locator(".excalidraw canvas").first()).toBeVisible();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  const saved = requests.filter(r => r.path.endsWith("/board")).at(-1)!.body.scene.elements;
+  expect(saved.some((e: { type: string }) => e.type === "rectangle")).toBe(true);
+  expect(saved.some((e: { text?: string }) => e.text === "Saved in this lesson")).toBe(true);
+  await page.getByTitle(/^Text/).click();
+  const textBounds = (await canvas.boundingBox())!;
+  await page.mouse.click(textBounds.x + 100, textBounds.y + 150);
+  await page.locator(".excalidraw-wysiwyg").fill("Native text");
+  await page.keyboard.press("Escape");
+  await expect.poll(() => fonts.length).toBeGreaterThan(0);
+  expect(fonts.every(url => new URL(url).origin === new URL(page.url()).origin)).toBe(true);
+  expect(errors).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath("excalidraw.png"), fullPage: true });
+  await page.evaluate(() => document.querySelector(".study-app")!.dispatchEvent(new CustomEvent("study:close")));
+  await expect(page.locator(".excalidraw canvas").first()).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator(".excalidraw canvas").first()).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("excalidraw-mobile.png"), fullPage: true });
 });

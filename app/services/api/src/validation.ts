@@ -1,4 +1,5 @@
 import type {
+  AssignmentInput,
   Board,
   LearnerProfile,
   PostRef,
@@ -133,5 +134,92 @@ export function board(value: unknown): Board {
         throw new HttpError(400, "Invalid board point");
     }
   }
+  if (b.scene !== undefined) {
+    const scene = object(b.scene);
+    if (!Array.isArray(scene.elements) || scene.elements.length > 2000)
+      throw new HttpError(400, "Whiteboard has too many elements");
+    const elementIds = new Set<string>();
+    for (const value of scene.elements) {
+      const element = object(value);
+      const key = id(element.id);
+      if (elementIds.has(key) || !["rectangle", "diamond", "ellipse", "arrow", "line", "freedraw", "text", "image", "frame", "magicframe"].includes(String(element.type)) ||
+          !["x", "y", "width", "height"].every(k => typeof element[k] === "number" && Number.isFinite(element[k]) && Math.abs(element[k] as number) <= 1000000))
+        throw new HttpError(400, "Invalid Excalidraw element");
+      elementIds.add(key);
+      if (element.link != null && !/^https?:\/\//i.test(string(element.link, 2000)))
+        throw new HttpError(400, "Invalid whiteboard link");
+    }
+    const files = object(scene.files);
+    if (Object.keys(files).length > 100) throw new HttpError(400, "Too many whiteboard images");
+    for (const [key, value] of Object.entries(files)) {
+      id(key);
+      const file = object(value);
+      if (file.id !== key || !["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"].includes(String(file.mimeType)) ||
+          !String(file.dataURL).startsWith(`data:${file.mimeType};base64,`) ||
+          !/^[A-Za-z0-9+/=\s]*$/.test(String(file.dataURL).split(",")[1] || ""))
+        throw new HttpError(400, "Invalid whiteboard image");
+    }
+    board({ items: scene.sourceItems, strokes: [] });
+  }
   return b as Board;
+}
+
+export function assignmentWrite(value: unknown, editing: boolean) {
+  const b = object(value), result: Record<string, unknown> = {};
+  const allowed = new Set(["title", "description", "state", "dueAt", "maxPoints", "topicId", ...(editing ? [] : ["attachments"])]);
+  if (Object.keys(b).some(k => !allowed.has(k))) throw new HttpError(400, "Unsupported assignment field; attachments can only be set on creation");
+  if (!editing || b.title !== undefined) {
+    result.title = string(b.title, 3000).trim();
+    if (!result.title) throw new HttpError(400, "Assignment title is required");
+  }
+  if (b.description !== undefined) result.description = string(b.description, 30000);
+  if (b.state !== undefined && !["DRAFT", "PUBLISHED", "DELETED"].includes(String(b.state))) throw new HttpError(400, "Invalid assignment state");
+  if (!editing || b.state !== undefined) result.state = b.state || "DRAFT";
+  if (b.topicId !== undefined) result.topicId = id(b.topicId);
+  if (b.maxPoints !== undefined) {
+    if (typeof b.maxPoints !== "number" || !Number.isFinite(b.maxPoints) || b.maxPoints < 0 || b.maxPoints > 100000) throw new HttpError(400, "Invalid assignment points");
+    result.maxPoints = b.maxPoints;
+  }
+  if (b.dueAt !== undefined) {
+    if (b.dueAt === null) { result.dueDate = null; result.dueTime = null; }
+    else {
+      const date = new Date(string(b.dueAt, 40));
+      if (!Number.isFinite(date.getTime())) throw new HttpError(400, "Invalid deadline");
+      result.dueDate = { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate() };
+      result.dueTime = { hours: date.getUTCHours(), minutes: date.getUTCMinutes() };
+    }
+  }
+  if (b.attachments !== undefined) {
+    if (!Array.isArray(b.attachments) || b.attachments.length > 20) throw new HttpError(400, "At most 20 attachments are allowed");
+    result.materials = b.attachments.map(entry => {
+      const a = object(entry);
+      if (!["VIEW", "EDIT", "STUDENT_COPY"].includes(String(a.shareMode))) throw new HttpError(400, "Invalid attachment sharing mode");
+      return { driveFile: { driveFile: { id: id(a.id) }, shareMode: a.shareMode } };
+    });
+  }
+  if (!Object.keys(result).length) throw new HttpError(400, "No assignment changes supplied");
+  return result;
+}
+
+export function assignment(value: unknown): AssignmentInput {
+  const b = object(value);
+  if (!["prepare", "save", "help", "review"].includes(String(b.action)))
+    throw new HttpError(400, "Unknown assignment action");
+  if (!Number.isSafeInteger(b.revision) || Number(b.revision) < 0)
+    throw new HttpError(400, "Invalid lesson revision");
+  const assignmentId = b.assignmentId === undefined ? undefined : id(b.assignmentId);
+  const draft = b.draft === undefined ? undefined : string(b.draft, 20000);
+  const question = b.question === undefined ? undefined : string(b.question, 2000);
+  if (b.action === "prepare" && !assignmentId)
+    throw new HttpError(400, "Select an assignment to prepare");
+  if (b.action === "save" && draft === undefined)
+    throw new HttpError(400, "Include your draft to save");
+  return {
+    action: b.action as AssignmentInput["action"],
+    ...(assignmentId === undefined ? {} : { assignmentId }),
+    ...(draft === undefined ? {} : { draft }),
+    ...(question === undefined ? {} : { question }),
+    revision: Number(b.revision),
+    requestId: id(b.requestId),
+  };
 }

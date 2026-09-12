@@ -62,7 +62,15 @@ function openStudy(items = [...selected.values()], intent?: string) {
 function closeStudy() {
   if (dialog.open) dialog.close();
 }
-launch.addEventListener("click", () => openStudy());
+function currentAssignment() {
+  const ref = classroomPostRef(location.href);
+  return ref && posts.find(p => p.type === "courseWork" && p.id === ref.postRef && p.courseId === ref.courseRef);
+}
+launch.addEventListener("click", () => {
+  const assignment = currentAssignment();
+  if (!selected.size && assignment) openStudy([assignment], "assignment");
+  else openStudy();
+});
 shadow.querySelector("#close")!.addEventListener("click", closeStudy);
 dialog.addEventListener("close", () => {
   frame.contentWindow?.postMessage(
@@ -84,7 +92,7 @@ window.addEventListener("message", (event) => {
 function updateLabel() {
   launch.textContent = selected.size
     ? `Study these together (${selected.size})`
-    : "Study notes";
+    : currentAssignment() ? "Work on this assignment" : "Study notes";
 }
 function matchesCourse(course: Course) {
   const ref = classroomCourseRef(location.href);
@@ -204,6 +212,7 @@ function attachControls() {
       b.addEventListener("click", () => openStudy(items, intent));
       controls.append(b);
     };
+    if (post.type === "courseWork") button("Work on this assignment", [post], "assignment");
     button(
       post.type === "courseWork"
         ? "Find notes that help with this"

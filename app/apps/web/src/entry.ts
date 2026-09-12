@@ -45,7 +45,7 @@ mountStudy(root, api, {
   courseId: query.get("courseId") || undefined,
   courseRef: query.get("courseRef") || undefined,
   posts,
-  intent: query.get("intent") === "relevant" ? "relevant" : undefined,
+  intent: ["relevant", "assignment"].includes(query.get("intent") || "") ? query.get("intent")! : undefined,
   ...(embedded
     ? {
         onClose: () =>

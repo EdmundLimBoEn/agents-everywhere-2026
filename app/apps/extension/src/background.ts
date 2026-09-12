@@ -48,6 +48,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
         throw new Error("Invalid API request.");
       const method = message.method || "GET";
       if (!allowedMethods.has(method)) throw new Error("Invalid API method.");
+      if (!extensionPage && (method !== "GET" || !/^\/api\/(status|courses(?:\/[\w-]+\/posts)?)$/.test(message.path))) throw new Error("Manage documents and assignments from the study window.");
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
         Accept: "application/x-ndjson",
