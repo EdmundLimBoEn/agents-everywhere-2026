@@ -10,6 +10,7 @@ import type {
   PostRef,
   TurnIntent,
 } from "../../../../packages/shared-types/src/study";
+import { manage } from "./manage";
 import { mountBoard } from "./board";
 import "./style.css";
 import { el, btn, mountDashboard } from "./dashboard";
@@ -110,7 +111,7 @@ export function mountStudy(
   const nav = el("nav");
   const learning = btn("My learning", () => void profile());
   learning.disabled = true;
-  nav.append(learning);
+  nav.append(learning, btn("Docs & assignments", () => manage(root, api, courseId, posts, lesson?.id || dashboardLesson?.id)));
   if (options.onClose)
     nav.append(
       btn("Close ×", () => {

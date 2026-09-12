@@ -162,3 +162,40 @@ export function board(value: unknown): Board {
   }
   return b as Board;
 }
+
+export function assignment(value: unknown, editing: boolean) {
+  const b = object(value), result: Record<string, unknown> = {};
+  const allowed = new Set(["title", "description", "state", "dueAt", "maxPoints", "topicId", ...(editing ? [] : ["attachments"])]);
+  if (Object.keys(b).some(k => !allowed.has(k))) throw new HttpError(400, "Unsupported assignment field; attachments can only be set on creation");
+  if (!editing || b.title !== undefined) {
+    result.title = string(b.title, 3000).trim();
+    if (!result.title) throw new HttpError(400, "Assignment title is required");
+  }
+  if (b.description !== undefined) result.description = string(b.description, 30000);
+  if (b.state !== undefined && !["DRAFT", "PUBLISHED", "DELETED"].includes(String(b.state))) throw new HttpError(400, "Invalid assignment state");
+  if (!editing || b.state !== undefined) result.state = b.state || "DRAFT";
+  if (b.topicId !== undefined) result.topicId = id(b.topicId);
+  if (b.maxPoints !== undefined) {
+    if (typeof b.maxPoints !== "number" || !Number.isFinite(b.maxPoints) || b.maxPoints < 0 || b.maxPoints > 100000) throw new HttpError(400, "Invalid assignment points");
+    result.maxPoints = b.maxPoints;
+  }
+  if (b.dueAt !== undefined) {
+    if (b.dueAt === null) { result.dueDate = null; result.dueTime = null; }
+    else {
+      const date = new Date(string(b.dueAt, 40));
+      if (!Number.isFinite(date.getTime())) throw new HttpError(400, "Invalid deadline");
+      result.dueDate = { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate() };
+      result.dueTime = { hours: date.getUTCHours(), minutes: date.getUTCMinutes() };
+    }
+  }
+  if (b.attachments !== undefined) {
+    if (!Array.isArray(b.attachments) || b.attachments.length > 20) throw new HttpError(400, "At most 20 attachments are allowed");
+    result.materials = b.attachments.map(entry => {
+      const a = object(entry);
+      if (!["VIEW", "EDIT", "STUDENT_COPY"].includes(String(a.shareMode))) throw new HttpError(400, "Invalid attachment sharing mode");
+      return { driveFile: { driveFile: { id: id(a.id) }, shareMode: a.shareMode } };
+    });
+  }
+  if (!Object.keys(result).length) throw new HttpError(400, "No assignment changes supplied");
+  return result;
+}

@@ -115,9 +115,10 @@ test("deduplicates attachments, keeps partial failures, and never fetches arbitr
       { id: "two", type: "courseWorkMaterials" },
     ],
   );
-  expect(result.sources).toHaveLength(1);
-  expect(result.sources[0]!.postIds).toEqual(["one", "two"]);
-  expect(result.sources[0]!.passages).toHaveLength(2);
+  expect(result.sources).toHaveLength(3);
+  const attached = result.sources.find(s => s.id === "doc1")!;
+  expect(attached.postIds).toEqual(["one", "two"]);
+  expect(attached.passages).toHaveLength(2);
   expect(result.failures).toEqual([
     {
       id: "denied",
@@ -294,7 +295,8 @@ test("parses a real PDF into bounded, page-linked passages", async () => {
     "class1",
     [{ id: "one", type: "courseWork" }],
   );
-  expect(result.failures).toEqual([]);
+  expect(result.failures[0]?.reason).toContain("Visual reading is not configured");
+  result.sources = result.sources.filter(s => s.id === "doc1");
   expect(result.sources[0]!.passages[0]!.page).toBe(1);
   expect(result.sources[0]!.passages.every((p) => p.text.length <= 2000)).toBe(
     true,
@@ -366,4 +368,68 @@ test("unclassified coursework denial explains account role even with a non-JSON 
   const result = await new GoogleClassroom("secret", s.fetcher).posts("class1");
   expect(result.warnings[0]).toContain("student");
   expect(result.warnings[0]).toContain("teacher");
+});
+
+test("post-only announcements and instructions are citable alongside failed attachments", async () => {
+  const s = stub(url => url.hostname === "classroom.googleapis.com" ? { id: "notice", courseId: "class1", text: "Bring a leaf on Tuesday. This instruction is only in the announcement." } : new Response("", { status: 403 }));
+  const loaded = await new GoogleClassroom("secret", s.fetcher).loadSources("class1", [{ id: "notice", type: "announcements" }]);
+  expect(loaded.sources).toHaveLength(1);
+  expect(loaded.sources[0]?.id).toBe("post-announcements-notice");
+  expect(loaded.sources[0]?.passages[0]?.text).toContain("Bring a leaf on Tuesday");
+  expect(loaded.sources[0]?.pdfAvailable).toBe(false);
+});
+
+test("reads Office, image, text and Workspace attachments through the correct format seam", async () => {
+  for (const mimeType of ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-excel", "image/png", "text/csv", "application/vnd.google-apps.presentation", "application/vnd.google-apps.spreadsheet"]) {
+    const calls: string[] = [];
+    const s = stub(url => {
+      if (url.hostname === "classroom.googleapis.com") return { id: "one", materials: [{ driveFile: { driveFile: { id: "file" } } }] };
+      if (url.searchParams.get("alt") === "media" || url.pathname.endsWith("/export")) return new Response("a,b\n1,2");
+      return { name: "data.xlsx", mimeType, capabilities: { canDownload: true } };
+    });
+    const reader = async (_: Uint8Array, mime: string) => { calls.push(mime); return [{ id: "reading-1", text: "Visible chart: 1, 2", heading: "AI-extracted" }]; };
+    // Google exports are PDFs; the export URL is checked separately because this fixture contains CSV bytes.
+    if (mimeType.startsWith("application/vnd.google-apps")) {
+      await new GoogleClassroom("secret", s.fetcher, reader).pdf("class1", [{ id: "one", type: "courseWork" }], "file");
+      expect(s.requests.at(-1)).toContain("/export?mimeType=application%2Fpdf");
+      continue;
+    }
+    const loaded = await new GoogleClassroom("secret", s.fetcher, reader).loadSources("class1", [{ id: "one", type: "courseWork" }]);
+    expect(loaded.failures).toEqual([]);
+    expect(loaded.sources.at(-1)?.pdfAvailable).toBe(false);
+    if (mimeType === "text/csv") expect(loaded.sources.at(-1)?.passages[0]?.text).toBe("a,b\n1,2");
+    else expect(calls).toEqual([mimeType]);
+  }
+});
+
+test("Google links inside the post are authorized attachments for both reading and preview", async () => {
+  const s = stub(url => url.hostname === "classroom.googleapis.com" ? { id: "one", description: "Read https://docs.google.com/document/d/linked/edit and https://evil.example/doc" } : url.pathname.endsWith("/export") ? new Response("%PDF-example") : { mimeType: "application/vnd.google-apps.document" });
+  const result = await new GoogleClassroom("secret", s.fetcher).pdf("class1", [{ id: "one", type: "announcements" }], "linked");
+  expect(new TextDecoder().decode(result)).toBe("%PDF-example");
+  expect(s.requests.every(u => new URL(u).hostname.endsWith("googleapis.com"))).toBe(true);
+});
+
+test("document import, revision-checked append and assignment attachment payloads use Google write APIs", async () => {
+  const calls: { url: string; init: RequestInit }[] = [];
+  const fetcher = (async (url: string, init: RequestInit) => { calls.push({ url, init }); return Response.json({ id: "created", associatedWithDeveloper: true }); }) as typeof fetch;
+  const client = new GoogleClassroom("secret", fetcher);
+  await client.createDocument("Review", "Content inside document");
+  expect(calls[0]?.url).toContain("uploadType=multipart");
+  expect(calls[0]?.init.body).toContain("Content inside document");
+  expect(calls[0]?.init.body).toContain("application/vnd.google-apps.document");
+  await client.updateDocument("created", { append: "More", revisionId: "rev1", tabId: "tab1" });
+  const append = JSON.parse(String(calls[1]?.init.body));
+  expect(append.writeControl).toEqual({ requiredRevisionId: "rev1" });
+  expect(append.requests[0].insertText.endOfSegmentLocation).toEqual({ tabId: "tab1" });
+  await client.saveAssignment("class1", { title: "Review", state: "DRAFT", materials: [{ driveFile: { driveFile: { id: "created" }, shareMode: "STUDENT_COPY" } }] });
+  expect(JSON.parse(String(calls[2]?.init.body))).toMatchObject({ workType: "ASSIGNMENT", state: "DRAFT", materials: [{ driveFile: { driveFile: { id: "created" } } }] });
+  await client.saveAssignment("class1", { title: "Updated" }, "assignment");
+  expect(calls.at(-1)?.url).toContain("updateMask=title");
+  expect(calls.at(-1)?.init.method).toBe("PATCH");
+});
+
+test("rejects assignment edits belonging to another Google project", async () => {
+  const s = stub(() => ({ associatedWithDeveloper: false }));
+  await expect(new GoogleClassroom("secret", s.fetcher).saveAssignment("class1", { title: "Changed" }, "other")).rejects.toThrow("Google project");
+  expect(s.requests).toHaveLength(1);
 });

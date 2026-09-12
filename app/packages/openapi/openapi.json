@@ -824,6 +824,374 @@
           }
         ]
       }
+    },
+    "/api/author/draft": {
+      "post": {
+        "summary": "Generate a reviewable draft; no Google writes",
+        "operationId": "postApiAuthorDraft",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorDraft"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/drive/search": {
+      "post": {
+        "summary": "Search authorized Drive files by name",
+        "operationId": "postApiDriveSearch",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents": {
+      "post": {
+        "summary": "Create a populated Google Doc by importing plain text",
+        "operationId": "postApiDocuments",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{documentId}": {
+      "get": {
+        "summary": "Read a Google Doc including tabs, passages and revision",
+        "operationId": "getApiDocumentsDocumentid",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          }
+        ]
+      },
+      "patch": {
+        "summary": "Rename, append with revision protection, trash or restore a document",
+        "operationId": "patchApiDocumentsDocumentid",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentUpdate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/courses/{courseId}/assignments": {
+      "post": {
+        "summary": "Create an assignment with Drive attachments; defaults to DRAFT",
+        "operationId": "postApiCoursesCourseidAssignments",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/courses/{courseId}/assignments/{assignmentId}": {
+      "get": {
+        "summary": "Read assignment for review",
+        "operationId": "getApiCoursesCourseidAssignmentsAssignmentid",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "assignmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          }
+        ]
+      },
+      "patch": {
+        "summary": "Update supported fields of assignments created by this Google project; attachments cannot be changed",
+        "operationId": "patchApiCoursesCourseidAssignmentsAssignmentid",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error; code identifies setup/auth/access/validation/conflict/provider failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "assignmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentUpdate"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -988,6 +1356,12 @@
           "publishedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "state": {
+            "type": "string"
+          },
+          "canManage": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -1728,6 +2102,169 @@
           "review",
           "plan"
         ]
+      },
+      "AuthorDraft": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "lessonId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "additionalProperties": false
+      },
+      "DocumentCreate": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 100000
+          }
+        },
+        "required": [
+          "title",
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "DocumentUpdate": {
+        "description": "Exactly one of name, append, or trashed. Appending requires a fresh revisionId and optionally a tabId. Existing content is preserved.",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "append": {
+            "type": "string"
+          },
+          "trashed": {
+            "type": "boolean"
+          },
+          "revisionId": {
+            "type": "string"
+          },
+          "tabId": {
+            "type": "string"
+          }
+        }
+      },
+      "AssignmentUpdate": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 3000
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "PUBLISHED",
+              "DELETED"
+            ]
+          },
+          "dueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "maxPoints": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "topicId": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "AssignmentCreate": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 3000
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 30000
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "PUBLISHED",
+              "DELETED"
+            ]
+          },
+          "dueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "maxPoints": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "topicId": {
+            "type": "string"
+          },
+          "attachments": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "shareMode": {
+                  "type": "string",
+                  "enum": [
+                    "VIEW",
+                    "EDIT",
+                    "STUDENT_COPY"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "shareMode"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false
       }
     }
   }

@@ -4,6 +4,8 @@ export type ClassroomPost = PostRef & {
   courseId: string;
   title: string;
   description: string;
+  state?: string;
+  canManage?: boolean;
   topicId?: string;
   dueAt?: string;
   publishedAt?: string;
