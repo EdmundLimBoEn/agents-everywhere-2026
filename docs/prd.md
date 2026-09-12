@@ -46,7 +46,7 @@ Show loading, empty selection, unavailable attachment, unsupported format, expir
 
 ## Scope
 
-Keep the explicit lesson state machine, the catch-up crew, learner profile, evidence-based mastery, voice, and shared whiteboard. Use one polished topic first. The learner profile is inspectable and editable. Generated practice is labeled. The extension overlay is the only student surface. Grading, turn-in, teacher dashboards, and Marketplace distribution are out. Completing a lesson saves learning progress without modifying Classroom submissions or grades.
+Keep the explicit lesson state machine, the catch-up crew, learner profile, evidence-based mastery, voice, and shared whiteboard. Use one polished topic first. The learner profile is inspectable and editable. Generated practice is labeled. The extension overlay is the only student surface inside Classroom. Outside it, the toolbar badge and a once-per-deadline notification only point back to Classroom; they never teach or open the overlay on their own. Grading, turn-in, teacher dashboards, and Marketplace distribution are out. Completing a lesson saves learning progress without modifying Classroom submissions or grades.
 
 ## Demo promise
 

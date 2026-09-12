@@ -12,6 +12,7 @@ The demo must prove both real Classroom integration and adaptive teaching. [The 
 - A Catch Up plan built from the selected posts within a stated time budget, with cited steps that reorder after a wrong answer.
 - Student interruptions, learner evidence saved, and a shared whiteboard supporting the lesson. Voice is optional.
 - Closing and reopening without losing the Classroom position or lesson progress.
+- Due-soon badge: after connecting, the toolbar badge shows the count of assignments due within 48 hours and each new deadline is announced once. Clicking the notification opens that assignment in Classroom.
 
 ## Primary demo
 
@@ -48,4 +49,4 @@ These are implementation acceptance checks, not claims that the current reposito
 
 ## Outside this demo
 
-Teacher-installed add-on, grade passback, submission turn-in, teacher dashboards, iOS, offline teaching, collaboration, notifications, and broad subject coverage.
+Teacher-installed add-on, grade passback, submission turn-in, teacher dashboards, iOS, offline teaching, collaboration, mobile push notifications, and broad subject coverage.

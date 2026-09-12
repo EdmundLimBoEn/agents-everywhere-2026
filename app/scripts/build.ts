@@ -7,6 +7,7 @@ import {
 } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
+import { iconPng } from "../apps/extension/src/icon";
 const root = resolve(import.meta.dir, "..");
 const { key } = JSON.parse(
   await readFile(
@@ -81,10 +82,14 @@ const manifest = {
   version: "1.0.0",
   description: "An adaptive teacher beside your actual Classroom materials.",
   key,
-  permissions: ["identity", "storage"],
+  permissions: ["identity", "storage", "alarms", "notifications"],
   host_permissions: ["https://classroom.google.com/*", `${origin.origin}/*`],
   background: { service_worker: "background.js", type: "module" },
-  action: { default_title: "Study your Classroom notes" },
+  icons: { "128": "icon-128.png" },
+  action: {
+    default_title: "Study your Classroom notes",
+    default_icon: { "128": "icon-128.png" },
+  },
   options_page: "options.html",
   content_scripts: [
     {
@@ -124,6 +129,7 @@ const manifest = {
       }
     : {}),
 };
+await writeFile(resolve(root, "dist/extension/icon-128.png"), iconPng(128));
 await writeFile(
   resolve(root, "dist/extension/manifest.json"),
   JSON.stringify(manifest, null, 2) + "\n",

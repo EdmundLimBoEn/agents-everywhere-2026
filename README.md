@@ -4,7 +4,7 @@ An AI teacher that lives inside Google Classroom.
 
 Students open their real class, tick the posts they want help with, and get tutored from those exact documents. Every explanation cites a passage the student can click to open. The tutor checks what the student understands and changes what it teaches next. When a student is behind, **Catch Up** turns the selected posts and the time they have into a short, cited plan.
 
-It is a Chrome extension. Teachers change nothing about how they work, and nothing is written back to Classroom.
+It is a Chrome extension. Teachers change nothing about how they work, and nothing is written back to Classroom. Between visits, the toolbar badge counts assignments due within 48 hours and a single notification per new deadline points back to the assignment in Classroom.
 
 ## Demo
 
@@ -24,7 +24,7 @@ Full script and acceptance checks: [docs/hackathon-scope.md](docs/hackathon-scop
 | Piece | Where | Role |
 | --- | --- | --- |
 | Content script | `app/apps/extension/src/content.ts` | Injects selection controls beside real posts and opens the study overlay in the same tab |
-| Service worker | `app/apps/extension/src/background.ts` | Google sign-in with `chrome.identity`. The only place the token lives |
+| Service worker | `app/apps/extension/src/background.ts` | Google sign-in with `chrome.identity`. The only place the token lives. Hourly due-soon check: toolbar badge counts assignments due within 48 hours, one notification per new deadline |
 | API | `app/services/api` | Bun and SQLite. Verifies the student's Google access, stores lessons, plans, and evidence |
 | Classroom client | `app/services/classroom` | Classroom, Drive, and Docs APIs. Reads posts, due dates, and extracts passages from attachments |
 | Tutor | `app/services/agent/src/index.ts` | Strict JSON output, verified citations, enforced lesson state machine |

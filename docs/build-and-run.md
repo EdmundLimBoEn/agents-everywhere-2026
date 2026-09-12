@@ -74,6 +74,10 @@ The board supports diagram items and drawing. Learner settings and assessment ev
 
 The standalone page at `http://localhost:8787` shows the study UI but does not replace extension Google sign-in. The product does not seed fake Classroom posts or sample notes when Google is unavailable.
 
+## Due-soon badge
+
+After connecting, the worker checks each active class once an hour. The toolbar badge shows how many assignments are due within 48 hours, and Chrome shows one notification per new deadline naming the class, the due time and the number of attached notes. Clicking it opens that assignment in Classroom. The badge uses the same read-only Classroom scopes and the same backend routes as the study window; it requests the `alarms` and `notifications` extension permissions. Submission state is not read, so a turned-in assignment still counts until its deadline passes. Disconnecting Google clears the badge.
+
 ## Data and recovery
 
 Lesson documents, conversations, board state, learner preferences, assessment evidence, and idempotent turn snapshots are stored locally in SQLite. The server rechecks Google access and refreshes materials when resuming and teaching. Deleting a lesson removes its turn history and associated profile evidence. Forgetting an evidence item removes it from the profile, lessons, and cached turn snapshots. Deleting the profile deletes all that user's saved lessons and profile. These actions do not delete Google Classroom files. Disconnect Google in extension settings to remove the extension's cached authorization; disconnecting does not delete stored study data. SQLite deletion is logical deletion, not a guarantee of forensic erasure from backups or disk.
