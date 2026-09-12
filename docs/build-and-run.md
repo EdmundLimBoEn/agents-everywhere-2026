@@ -42,7 +42,7 @@ bun run start
 5. Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select `app/dist/extension` from the repository. Confirm its ID matches the OAuth client. After rebuilding, reload the extension and Classroom tab.
 6. Open a real class at Google Classroom, click **Study notes**, and connect Google. The signed-in account must actually have access to that class and its attachments.
 
-The generated `app/dist/extension/manifest.json` is the exact scope reference. The build requests `openid`, `email`, `profile`, and these read-only Google scopes:
+The generated `app/dist/extension/manifest.json` is the exact scope reference. The build requests `openid`, `email`, `profile`, and these Google scopes:
 
 ```text
 https://www.googleapis.com/auth/classroom.courses.readonly
@@ -50,13 +50,15 @@ https://www.googleapis.com/auth/classroom.coursework.me.readonly
 https://www.googleapis.com/auth/classroom.courseworkmaterials.readonly
 https://www.googleapis.com/auth/classroom.announcements.readonly
 https://www.googleapis.com/auth/classroom.topics.readonly
-https://www.googleapis.com/auth/documents.readonly
+https://www.googleapis.com/auth/documents
+https://www.googleapis.com/auth/drive.file
+https://www.googleapis.com/auth/classroom.coursework.students
 https://www.googleapis.com/auth/drive.readonly
 ```
 
-There is no grade passback or Classroom write access. Google authorization remains in the extension worker; the Classroom page does not receive the token. The worker sends it to your configured backend for Google access verification and document retrieval. OpenAI credentials stay on the backend. Retrieved lesson content and student responses are sent to OpenAI to teach; voice additionally connects the browser to OpenAI using a short-lived session credential.
+The Docs & assignments editor can write documents and assignments after user review; it does not pass back grades or submit student work. Google authorization remains in the extension worker; the Classroom page does not receive the token. The worker sends it to your configured backend for Google access verification and document retrieval. OpenAI credentials stay on the backend. Retrieved lesson content and student responses are sent to OpenAI to teach; voice additionally connects the browser to OpenAI using a short-lived session credential.
 
-If assignments show `courseWork: Google denied access to this resource`, check the account connected to the extension, which may differ from the account open in the Classroom tab. This build requests `classroom.coursework.me.readonly` for students; a teacher/class owner needs `classroom.coursework.students.readonly` to read coursework in classes they teach ([Google scope reference](https://developers.google.com/workspace/classroom/guides/auth)). For student testing, use an account enrolled as a student in the selected class. Missing OAuth consent is reported separately: disconnect Google in extension settings, reconnect from the study window, and approve the requested permissions. Reload the extension after any rebuild that changes scopes. Disabled APIs and school policy restrictions require the indicated Cloud project or administrator change; repeated sign-in alone cannot resolve them.
+If assignments show `courseWork: Google denied access to this resource`, check the account connected to the extension, which may differ from the account open in the Classroom tab. This build requests `classroom.coursework.me.readonly` for students; the authoring build also requests `classroom.coursework.students` for teacher access in classes they teach ([Google scope reference](https://developers.google.com/workspace/classroom/guides/auth)). For student testing, use an account enrolled as a student in the selected class. Missing OAuth consent is reported separately: disconnect Google in extension settings, reconnect from the study window, and approve the requested permissions. Reload the extension after any rebuild that changes scopes. Disabled APIs and school policy restrictions require the indicated Cloud project or administrator change; repeated sign-in alone cannot resolve them.
 
 ## Use the complete flow
 
@@ -72,7 +74,7 @@ For a visible local preview, open `http://localhost:8787` while the server runs.
 
 On Stream or Classwork, select posts using the injected controls, study a topic, or find notes related to an assignment. The material picker also lists posts from the actual Classroom API. Select two posts with readable attachments, open the lesson, and choose **Teach me**. Documents stay visible beside the teaching conversation. Click a citation to open and highlight its passage. Answer incorrectly to exercise reteaching, then use an interruption such as simplify, example, why, or skip. Continue through practice, teach-back, and recap.
 
-The board supports diagram items and drawing. Learner settings and assessment evidence persist with the lesson. Close the overlay with its close button or Escape to return to Classroom, then reopen and resume the saved lesson. For voice, start a lesson first, enable voice, and allow microphone access. Voice requires a configured Realtime model and a working WebRTC connection; spoken student turns use the same teaching engine as typed turns.
+The Excalidraw board supports editable diagrams, freehand drawing, text, images, undo/redo, and scene import/export. Scenes save with the lesson; failed saves retain edits and expose a Save retry button. Learner settings and assessment evidence persist with the lesson. Close the overlay with its close button or Escape to return to Classroom, then reopen and resume the saved lesson. For voice, start a lesson first, enable voice, and allow microphone access. Voice requires a configured Realtime model and a working WebRTC connection; spoken student turns use the same teaching engine as typed turns.
 
 The standalone page at `http://localhost:8787` shows the study UI but does not replace extension Google sign-in. The product does not seed fake Classroom posts or sample notes when Google is unavailable.
 
