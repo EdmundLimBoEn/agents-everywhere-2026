@@ -21,6 +21,10 @@ The agent opens the document and highlights the passage or diagram it is discuss
 
 Closing the overlay returns focus and scroll position to the same Classroom location. Escape closes it, keyboard users can select materials and navigate documents, and background controls must not receive focus while the overlay is modal. Reopening resumes the lesson and source selection.
 
+## Catch Up
+
+The overlay opens on a Catch Up dashboard for the current class. The student chooses which updates to include and how many minutes they have, then builds a plan. A Class Scout summarizes the selected posts and known deadlines, a Planner writes one to six steps whose minute estimates fit the budget, and the Tutor starts a diagnostic. After each assessable answer a separate Reviewer grades it and names a supported prerequisite gap; the Planner replans with that review first, and the Tutor must agree with the Reviewer before the turn is saved. Every step and note cites an exact passage. Plans are for the next study window only; checkmarks are self-reported and never count as mastery. The crew sees only the selected posts and never infers attendance or submission status.
+
 ## The teaching loop
 
 1. Find the student's starting point with a short diagnostic question.
@@ -42,7 +46,7 @@ Show loading, empty selection, unavailable attachment, unsupported format, expir
 
 ## Scope
 
-Keep the explicit lesson state machine, learner profile, evidence-based mastery, voice, and shared whiteboard. Use one polished topic first. The learner profile is inspectable and editable. Generated practice is labeled. The extension overlay is the only student surface. Grading, turn-in, teacher dashboards, and Marketplace distribution are out. Completing a lesson saves learning progress without modifying Classroom submissions or grades.
+Keep the explicit lesson state machine, the catch-up crew, learner profile, evidence-based mastery, voice, and shared whiteboard. Use one polished topic first. The learner profile is inspectable and editable. Generated practice is labeled. The extension overlay is the only student surface. Grading, turn-in, teacher dashboards, and Marketplace distribution are out. Completing a lesson saves learning progress without modifying Classroom submissions or grades.
 
 ## Demo promise
 

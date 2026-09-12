@@ -51,3 +51,7 @@ ready → diagnostic → teaching / reteaching → practice → teach_back → c
 ## Observable adaptation
 
 Run the same diagnostic twice, once with a wrong answer and once with a right one. The wrong answer must produce `reteach` with a named misconception and a citation. The right one must produce `practice`. Rewording the same script does not pass.
+
+## Catch-up crew
+
+Catch Up wraps the same tutor in `app/services/agent/src/crew.ts`. When a turn carries a time budget, the server runs a Class Scout, then a Reviewer if the answer is assessable, then a Planner, then the Tutor. Each is a separate strict-JSON request and every note or step goes through the same exact-quote citation check. The Planner's step minutes must sum to at most the budget. The Tutor's assessment must equal the Reviewer's or the turn is rejected. The state machine above is unchanged; the crew only adds a plan and a review to each turn.
