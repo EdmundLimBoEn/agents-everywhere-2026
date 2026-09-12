@@ -55,8 +55,11 @@ export function annotationElements(item: BoardItem, targets: ReadonlyMap<string,
   }
 }
 
-export function mountBoard(host: HTMLElement, initial: Board, save: (board: Board) => Promise<void>, options: { ask?: (question: string) => void } = {}) {
+/** Pause between tutor strokes so the diagram appears to be drawn, not pasted. */
+export const REVEAL_DELAY_MS = 420;
+export function mountBoard(host: HTMLElement, initial: Board, save: (board: Board) => Promise<void>, options: { ask?: (question: string) => void; animate?: boolean } = {}) {
   const board = structuredClone(initial);
+  const animate = options.animate ?? !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   // Retain edits to existing tutor shapes; replace only changed source diagrams.
   const changed = new Set(board.items.filter(item =>
     JSON.stringify(item) !== JSON.stringify(board.scene?.sourceItems.find(old => old.id === item.id)),
@@ -67,13 +70,34 @@ export function mountBoard(host: HTMLElement, initial: Board, save: (board: Boar
   });
   const targets = new Map(existing.filter(element => element.isDeleted !== true && typeof element.id === "string")
     .map(element => [element.id as string, element as unknown as Box]));
-  const added = board.items.filter(item => !board.scene || changed.has(item.id)).flatMap(item => annotationElements(item, targets));
+  // One group per tutor item, so a label and its arrow appear together when the tutor draws.
+  const groups = board.items.filter(item => !board.scene || changed.has(item.id)).map(item => annotationElements(item, targets));
   const strokes = board.scene ? [] : board.strokes.filter(s => s.points.length).flatMap(stroke => {
     const first = stroke.points[0];
     return convertToExcalidrawElements([{ type: "line", x: first.x, y: first.y,
       strokeColor: stroke.color, points: stroke.points.map(p => [p.x - first.x, p.y - first.y]) }]);
   });
-  const elements = restoreElements([...existing, ...added, ...strokes] as ExcalidrawElement[], null);
+  const reveal = animate && groups.length > 0;
+  const elements = restoreElements([...existing, ...(reveal ? [] : groups.flat()), ...strokes] as ExcalidrawElement[], null);
+  let animating = reveal, disposed = false, deferred = false, settle: (() => void) | undefined;
+  const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+  /** Draw the tutor's new items one by one and follow them with the viewport, like a teacher at the board. */
+  async function draw(instance: ExcalidrawImperativeAPI) {
+    const drawn: ExcalidrawElement[] = [];
+    for (const group of groups) {
+      await wait(REVEAL_DELAY_MS);
+      if (disposed) return;
+      drawn.push(...group);
+      instance.updateScene({ captureUpdate: CaptureUpdateAction.NEVER, elements: [...instance.getSceneElementsIncludingDeleted(), ...group] });
+      instance.scrollToContent([...existing.filter(e => e.isDeleted !== true), ...drawn] as ExcalidrawElement[], { fitToContent: true, animate: true, duration: 300 });
+    }
+    // Excalidraw reports the last stroke on a later render; wait for it so the save holds the whole drawing.
+    await new Promise<void>(resolve => { settle = resolve; setTimeout(resolve, 400); });
+    settle = undefined;
+    animating = false;
+    // One save once the drawing is complete, covering anything the student changed meanwhile.
+    if (deferred && !disposed) void persist();
+  }
   const bar = document.createElement("div");
   bar.className = "study-tools";
   const status = document.createElement("span");
@@ -139,7 +163,10 @@ export function mountBoard(host: HTMLElement, initial: Board, save: (board: Boar
   root.render(createElement(Excalidraw, {
     initialData: { elements, files: (board.scene?.files || {}) as BinaryFiles,
       appState: { viewBackgroundColor: "#fffdf7" }, scrollToContent: true },
-    excalidrawAPI: instance => { api = instance; },
+    excalidrawAPI: instance => {
+      api = instance;
+      if (reveal) void draw(instance);
+    },
     validateEmbeddable: false,
     UIOptions: { canvasActions: { loadScene: true, export: { saveFileToDisk: true } } },
     onChange: (elements, _state, files) => {
@@ -149,7 +176,10 @@ export function mountBoard(host: HTMLElement, initial: Board, save: (board: Boar
       const first = !signature;
       signature = next;
       board.scene = scene;
-      if (!first) void persist();
+      settle?.();
+      if (first) return;
+      if (animating) deferred = true;
+      else void persist();
     },
   }));
   /** JPEG data URL of the current drawing for the tutor, or "" when the board is empty. */
@@ -165,5 +195,5 @@ export function mountBoard(host: HTMLElement, initial: Board, save: (board: Boar
       reader.readAsDataURL(blob);
     });
   }
-  return { dispose: () => root.unmount(), snapshot };
+  return { dispose: () => { disposed = true; root.unmount(); }, snapshot };
 }

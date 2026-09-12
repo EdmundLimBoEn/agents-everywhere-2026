@@ -15,7 +15,7 @@ Classroom's Stream, Classwork, posts, and original attachment links keep working
 
 ## Study overlay
 
-The left side contains readable document tabs. The right side contains the active lesson and an answer field, with voice and a shared whiteboard supporting teaching. “Teach me this topic” is the primary action; students can also ask a question across selected documents. On the whiteboard, a student can sketch and ask about the sketch; the agent answers from the notes and marks the sketch itself, pointing at or ringing the shapes it discusses without changing them.
+The left side contains readable document tabs. The right side contains the active lesson and an answer field, with voice and a shared whiteboard supporting teaching. “Teach me this topic” is the primary action; students can also ask a question across selected documents. On the whiteboard, a student can sketch and ask about the sketch; the agent answers from the notes and marks the sketch itself, pointing at or ringing the shapes it discusses without changing them. A student can also ask to be taught at the whiteboard; the agent then builds one diagram of the concept step by step as the lesson proceeds, like a teacher at a board.
 
 The agent opens the document and highlights the passage or diagram it is discussing. Clicking a citation selects the matching document and scrolls to the supporting passage inside the overlay. Preserve document identity and stable source locations during ingestion; a source chip alone is insufficient.
 

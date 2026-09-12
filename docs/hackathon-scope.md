@@ -43,7 +43,7 @@ Before the demo, confirm the electricity notes contain the passages steps 5 and 
 - Interruptions: simplify, example, why, and skip each affect the next action; skip alone does not increase mastery.
 - Navigation: test Stream, Classwork, posts, original attachments, overlay close/reopen, keyboard use, and restored focus/scroll after Classroom page changes.
 - Recovery: authorization expiry and retrieval failure offer a usable retry without invented sources or lost lesson state.
-- Whiteboard: draw a shape and ask about it from the Whiteboard tab; the tutor's green marks appear next to that shape, the student's shapes are unchanged, and a reply pointing at a shape that is not on the board is rejected.
+- Whiteboard: draw a shape and ask about it from the Whiteboard tab; the tutor's green marks appear next to that shape, the student's shapes are unchanged, and a reply pointing at a shape that is not on the board is rejected. Start a lesson with **Teach me at the whiteboard**; the tutor's diagram appears part by part and the parts it keeps survive the next turn.
 
 These are implementation acceptance checks, not claims that the current repository passes them.
 

@@ -72,9 +72,12 @@ export function turn(value: unknown): TurnInput {
     throw new HttpError(400, "Catch-up time must be 5–120 whole minutes");
   if (b.boardSnapshot !== undefined && !/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(string(b.boardSnapshot, BOARD_SNAPSHOT_LIMIT)))
     throw new HttpError(400, "Whiteboard snapshot must be a PNG, JPEG or WebP image");
+  if (b.whiteboard !== undefined && typeof b.whiteboard !== "boolean")
+    throw new HttpError(400, "whiteboard must be true or false");
   return {
     ...(b.catchUpMinutes !== undefined ? { catchUpMinutes: Number(b.catchUpMinutes) } : {}),
     ...(b.boardSnapshot !== undefined ? { boardSnapshot: b.boardSnapshot as string } : {}),
+    ...(b.whiteboard === true ? { whiteboard: true } : {}),
     intent: intent as TurnInput["intent"],
     text,
     requestId: id(b.requestId),

@@ -2027,6 +2027,10 @@
             "maxLength": 2000000,
             "pattern": "^data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$",
             "description": "Picture of the student's whiteboard, sent when the question is asked from the Whiteboard tab. The tutor also receives the saved scene's student shapes and may annotate them in its reply."
+          },
+          "whiteboard": {
+            "type": "boolean",
+            "description": "True when the student is at the Whiteboard tab. The tutor then teaches by building its diagram there, adding to the board items it drew on earlier turns."
           }
         },
         "required": [

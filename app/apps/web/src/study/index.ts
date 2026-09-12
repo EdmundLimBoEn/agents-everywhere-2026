@@ -529,7 +529,7 @@ export function mountStudy(
         notice.replaceChildren(el("span", "Your tutor is looking at your whiteboard…"));
       lesson = await api<Lesson>(`/api/lessons/${lessonId}/turn`, {
         method: "POST",
-        body: { ...body, ...(boardSnapshot ? { boardSnapshot } : {}) },
+        body: { ...body, ...(fromBoard ? { whiteboard: true } : {}), ...(boardSnapshot ? { boardSnapshot } : {}) },
       });
       if (board) board.draft = structuredClone(lesson.board);
       followTeaching(fromBoard);
@@ -741,6 +741,13 @@ export function mountStudy(
       );
       messages.append(
         btn("Teach me this topic →", () => void turn("teach"), "study-primary"),
+        btn("Teach me at the whiteboard →", () => {
+          // Open the board first so the whole lesson, and the tutor's drawing, happens there.
+          boardOpen = true;
+          renderLesson();
+          void turn("teach");
+        }, "study-primary study-board-start"),
+        el("p", "At the whiteboard, your tutor draws the idea step by step while it explains.", "study-meta"),
       );
       const catchUp = el("form", "", "study-catch-up-start"), label = el("label", "Time I have right now"), budget = el("input");
       budget.type = "number";
