@@ -61,10 +61,10 @@ const ext = await Bun.build({
 });
 if (!ext.success) throw new AggregateError(ext.logs, "Extension build failed");
 const page = (title: string, script: string, css?: string) =>
-  `<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>${css ? `<link rel="stylesheet" href="${css}">` : ""}</head><body><div id="root"></div><script type="module" src="${script}"></script></body></html>`;
+  `<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="A manageable catch-up plan, grounded in your Classroom notes. Learn one step at a time with Afterclass."><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="11" fill="#187c55"/><path d="M20 5Q22 18 35 20Q22 22 20 35Q18 22 5 20Q18 18 20 5" fill="white"/></svg>')}"><title>${title}</title>${css ? `<link rel="stylesheet" href="${css}">` : ""}</head><body><div id="root"></div><script type="module" src="${script}"></script></body></html>`;
 await writeFile(
   resolve(root, "dist/web/index.html"),
-  page("Afterclass · Understand your notes", "entry.js", "entry.css"),
+  page("Afterclass · Catch Up in Classroom", "entry.js", "entry.css"),
 );
 await writeFile(
   resolve(root, "dist/extension/study.html"),
