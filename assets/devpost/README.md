@@ -1,5 +1,7 @@
 # Afterclass — Devpost brand kit
 
+The current **AfterClass** identity, fresh interface captures, and editable graphics are in [the brand kit](../brand/README.md). This directory retains the earlier illustrated concept kit.
+
 ## Assets
 
 | File | Size | Use |
