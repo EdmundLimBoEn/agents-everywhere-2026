@@ -77,6 +77,17 @@ test("packaged MV3 extension starts its worker, injects Classroom and opens its 
       path: testInfo.outputPath("packaged-extension.png"),
       contentType: "image/png",
     });
+    await frame.getByRole("button", { name: "learning.md", exact: true }).click();
+    const preview = frame.locator(".study-learning-preview");
+    await expect(preview).toContainText("Fictional demo");
+    await expect(preview).toContainText("What seems understood");
+    await expect(preview).toContainText("What might need another check");
+    await expect(preview).toContainText("Not checked yet");
+    await expect(frame.getByRole("link", { name: "Download learning.md" })).toHaveAttribute("href", `chrome-extension://${id}/learning.md`);
+    await classroom.screenshot({ path: testInfo.outputPath("learning-memory-demo.png"), fullPage: true });
+    await frame.getByRole("button", { name: "Done", exact: true }).click();
+    await expect(frame.getByRole("dialog")).toHaveCount(0);
+    expect(startupErrors).toEqual([]);
   } finally {
     await context.close();
   }

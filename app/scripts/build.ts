@@ -53,9 +53,11 @@ for (const name of await readdir(resolve(root, "dist/web")))
     resolve(root, "dist/extension", name),
     { recursive: true },
   );
-for (const destination of ["dist/web", "dist/extension"])
+for (const destination of ["dist/web", "dist/extension"]) {
   await cp(resolve(root, "node_modules/@excalidraw/excalidraw/dist/prod/fonts"),
     resolve(root, destination, "fonts"), { recursive: true });
+  await cp(resolve(root, "apps/extension/assets/learning.md"), resolve(root, destination, "learning.md"));
+}
 const ext = await Bun.build({
   entrypoints: ["background", "content", "options"].map((n) =>
     resolve(root, `apps/extension/src/${n}.ts`),

@@ -346,6 +346,7 @@ html, body { margin: 0; }
 .study-dialog-head h2 { margin: 0; font-size: 24px; }
 .study-app .study-dialog-close { border: 0; font-size: 22px; line-height: 1; padding: 4px 10px; color: var(--muted); border-radius: 50%; }
 .study-dialog-body { padding: 0 28px 20px; overflow: auto; min-height: 0; flex: 1; }
+.study-learning-preview { white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.7 ui-monospace, monospace; background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 18px; }
 .study-dialog-foot { padding: 14px 28px 18px; border-top: 1px solid var(--line); background: var(--card); display: flex; justify-content: flex-end; }
 .study-dialog label { display: grid; gap: 5px; margin: 14px 0; font-size: 14px; }
 .study-dialog .study-review-choice { display: flex; align-items: center; gap: 12px; }
@@ -530,8 +531,9 @@ html, body { margin: 0; }
   .catchup-intro { padding-top: 27px; }
 }
 @media (max-width: 650px) {
-  .study-header { height: 66px; padding: 0 18px; }
+  .study-header { height: auto; min-height: 66px; padding: 12px 18px; flex-wrap: wrap; gap: 8px; }
   .study-logo { font-size: 20px; }
+  .study-header nav { flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
   .study-header nav button { font-size: 12px; padding: 6px; }
   .study-notice:not(:empty) { padding: 10px 18px; }
   /* Stacked lesson: the page scrolls again and each column gets its own height. */
@@ -551,7 +553,7 @@ html, body { margin: 0; }
   .study-board { min-height: 250px; }
 }
 @media (max-width: 600px) {
-  .study-header { padding: 0 20px; height: 68px; }
+  .study-header { padding: 12px 20px; min-height: 68px; }
   .catchup-content { padding: 22px 18px; }
   .catchup-controls { gap: 10px; }
   .catchup-controls label { flex-basis: 100%; min-width: 0; }

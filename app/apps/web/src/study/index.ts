@@ -142,6 +142,17 @@ export function mountStudy(
   const learning = btn("My learning", () => void profile());
   learning.disabled = true;
   nav.append(learning, btn("Docs & assignments", () => manage(root, api, courseId, posts, lesson?.id || dashboardLesson?.id)));
+  nav.append(btn("learning.md", () => void run(async () => {
+    const response = await fetch(new URL("learning.md", location.href));
+    if (!response.ok) throw new Error("The sample learning notes could not be loaded.");
+    const text = await response.text();
+    const d = makeDialog("learning.md · demo");
+    const download = el("a", "Download learning.md");
+    download.href = new URL("learning.md", location.href).href;
+    download.download = "learning.md";
+    d.body.append(el("p", "Sample learner memory: what seems understood, what needs another check, and what is still unknown.", "study-meta"),
+      download, el("pre", text, "study-learning-preview"));
+  }, "Opening sample learning notes…")));
   if (options.onClose)
     nav.append(
       btn("Close ×", () => {
