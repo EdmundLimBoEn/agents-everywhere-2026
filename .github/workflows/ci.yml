@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Typecheck, tests, build and Chromium
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      # Mocked integrations require no Google or OpenAI secrets.
+      - name: Typecheck, unit tests and build
+        run: bun run check
+      - name: Install Chromium and system dependencies
+        run: bunx playwright install --with-deps chromium
+      - name: Browser and unpacked extension tests
+        run: bun run test:e2e --workers=2 --reporter=line,html
+      - name: Save browser report and failure traces
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: |
+            app/playwright-report/
+            app/test-results/
+          retention-days: 7
