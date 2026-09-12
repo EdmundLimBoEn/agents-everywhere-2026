@@ -2,10 +2,12 @@
 
 The lesson Whiteboard tab embeds Excalidraw, bundled locally for the web app and Chrome extension. Students can draw, edit shapes and arrows, add text and images, undo/redo, and import/export Excalidraw files using its native controls.
 
+**Ask about your drawing.** The field above the canvas sends a question to the tutor together with a JPEG snapshot of the board (Excalidraw's own export, at most 1400 px, made in the browser) and a list of the student's shapes (id, type, position, size, text) that the API derives from the saved scene. The reply's board items may name a shape as `target`: text and arrows point at it, rectangles and ellipses ring it. Every tutor mark uses one green stroke and carries `customData.boardItemId`, so the next annotated reply replaces the previous marks while student shapes stay untouched; marks are ordinary elements the student can move or delete. Questions asked from a document tab work the same way without the picture, and the answer then offers **See it on the whiteboard**. The server rejects a reply that points at a shape not on the board, and the tutor cannot move or delete student shapes.
+
 Scenes autosave through the authenticated lesson board endpoint; Save retries failures. The in-memory draft survives tab changes, and teaching/voice wait for pending saves. Existing notes and strokes migrate on opening. Changed tutor diagrams replace their previous shapes while unrelated student drawings remain.
 
 The optional `Board.scene` stores elements (including deletion markers), embedded image files, and the source items used to reconcile tutor updates. Existing `items` and `strokes` remain compatible with older lessons. Pan, zoom, selection and undo history are session-only. No multiplayer service is configured.
 
-Board requests are capped at 10 MB, 2,000 scene elements and 100 embedded images. Invalid geometry, duplicate IDs, external image URLs, unsafe links and embedded webpages are rejected. Failed saves retain the current draft; reduce oversized content and retry before closing the lesson.
+Board requests are capped at 10 MB, 2,000 scene elements and 100 embedded images. Turn requests carrying a board snapshot are capped at 3 MB, with the snapshot itself at most 2,000,000 characters of PNG, JPEG or WebP data URL; the tutor sees at most 120 student shapes. Invalid geometry, duplicate IDs, external image URLs, unsafe links and embedded webpages are rejected. Failed saves retain the current draft; reduce oversized content and retry before closing the lesson.
 
 Run `cd app && bun run check && bun run test:e2e`. `scripts/build.ts` bundles the editor and copies its fonts to both distribution folders; no drawing-site account is required.

@@ -10,7 +10,7 @@ The demo must prove both real Classroom integration and adaptive teaching. [The 
 - Same-tab overlay with readable document tabs and citations that navigate to exact supporting passages.
 - Cross-document questions and an agent-led mini lesson with diagnostic, teaching, answer check, adaptation, teach-back, and recap.
 - A Catch Up plan built from the selected posts within a stated time budget, with cited steps that reorder after a wrong answer.
-- Student interruptions, learner evidence saved, and a shared whiteboard supporting the lesson. Voice is optional.
+- Student interruptions, learner evidence saved, and a shared whiteboard supporting the lesson, where the tutor marks its answer on the student's own drawing when asked. Voice is optional.
 - Closing and reopening without losing the Classroom position or lesson progress.
 
 ## Primary demo
@@ -43,6 +43,7 @@ Before the demo, confirm the electricity notes contain the passages steps 5 and 
 - Interruptions: simplify, example, why, and skip each affect the next action; skip alone does not increase mastery.
 - Navigation: test Stream, Classwork, posts, original attachments, overlay close/reopen, keyboard use, and restored focus/scroll after Classroom page changes.
 - Recovery: authorization expiry and retrieval failure offer a usable retry without invented sources or lost lesson state.
+- Whiteboard: draw a shape and ask about it from the Whiteboard tab; the tutor's green marks appear next to that shape, the student's shapes are unchanged, and a reply pointing at a shape that is not on the board is rejected.
 
 These are implementation acceptance checks, not claims that the current repository passes them.
 

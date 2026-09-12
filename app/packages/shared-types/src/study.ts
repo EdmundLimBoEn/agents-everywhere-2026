@@ -55,12 +55,14 @@ export type LessonPhase =
   | "complete";
 export type BoardItem = {
   id: string;
-  kind: "text" | "arrow" | "rectangle";
+  kind: "text" | "arrow" | "rectangle" | "ellipse";
   x: number;
   y: number;
   width: number;
   height: number;
   text: string;
+  /** Whiteboard element the tutor points at (text, arrow) or encloses (rectangle, ellipse). */
+  target?: string;
 };
 export type BoardStroke = { points: { x: number; y: number }[]; color: string };
 export type Board = {
@@ -95,6 +97,8 @@ export type LessonMessage = {
   text: string;
   action?: TeachingAction;
   citations: Citation[];
+  /** The tutor drew on the whiteboard with this reply. */
+  annotated?: boolean;
   createdAt: string;
 };
 export type Lesson = {
@@ -128,6 +132,8 @@ export type TurnInput = {
   intent: TurnIntent;
   catchUpMinutes?: number;
   text: string;
+  /** JPEG or PNG data URL of the student's whiteboard, sent when asking from the whiteboard tab. */
+  boardSnapshot?: string;
   requestId: string;
   revision: number;
 };

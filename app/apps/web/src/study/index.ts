@@ -90,7 +90,7 @@ export function mountStudy(
     voiceActive = Boolean((event as CustomEvent<boolean>).detail);
     setBoardBusy(busy || voiceActive);
   });
-  let disposeBoard: (() => void) | undefined;
+  let boardView: ReturnType<typeof mountBoard> | undefined;
   let pdfUrl = "";
   function releasePDF() {
     if (pdfUrl) {
@@ -216,8 +216,8 @@ export function mountStudy(
     }
   }
   function renderPicker() {
-    disposeBoard?.();
-    disposeBoard = undefined;
+    boardView?.dispose();
+    boardView = undefined;
     root.dispatchEvent(new CustomEvent("study:close"));
     releasePDF();
     if (lesson?.catchUp) dashboardLesson = lesson;
@@ -505,6 +505,9 @@ export function mountStudy(
   }
   async function turn(intent: TurnIntent, text = "", catchUpMinutes?: number) {
     if (!lesson) return;
+    // Asked from the whiteboard: send a picture of it and stay there to see the tutor's marks.
+    const fromBoard = boardOpen,
+      view = boardView;
     const lessonId = lesson.id,
       body = {
         intent,
@@ -519,17 +522,20 @@ export function mountStudy(
         await board.pending;
         if (board.error) throw board.error;
       }
+      const boardSnapshot = fromBoard && view ? await view.snapshot().catch(() => "") : "";
       if (catchUpMinutes !== undefined || lesson?.catchUp)
         notice.replaceChildren(el("span", "Your crew is reading, planning, and preparing the next step…"));
+      else if (boardSnapshot)
+        notice.replaceChildren(el("span", "Your tutor is looking at your whiteboard…"));
       lesson = await api<Lesson>(`/api/lessons/${lessonId}/turn`, {
         method: "POST",
-        body,
+        body: { ...body, ...(boardSnapshot ? { boardSnapshot } : {}) },
       });
       if (board) board.draft = structuredClone(lesson.board);
-      followTeaching();
+      followTeaching(fromBoard);
     });
   }
-  function followTeaching() {
+  function followTeaching(keepBoard = false) {
     const citation = lesson?.messages
       .filter((m) => m.role === "agent")
       .at(-1)
@@ -542,6 +548,11 @@ export function mountStudy(
             ),
         ),
       );
+    if (keepBoard) {
+      boardOpen = true;
+      renderLesson();
+      return;
+    }
     if (citation) {
       activeSource = citation.sourceId;
       boardOpen = false;
@@ -569,8 +580,8 @@ export function mountStudy(
     releasePDF();
     main.className = "";
     const current = lesson;
-    disposeBoard?.();
-    disposeBoard = undefined;
+    boardView?.dispose();
+    boardView = undefined;
     main.replaceChildren();
     const title = el("div", "", "study-lesson-title");
     title.append(
@@ -638,8 +649,11 @@ export function mountStudy(
             "study-warning",
           ),
         );
-      disposeBoard = mountBoard(paper, draft?.draft || current.board, (board) =>
-        saveBoard(current.id, board),
+      boardView = mountBoard(
+        paper,
+        draft?.draft || current.board,
+        (board) => saveBoard(current.id, board),
+        { ask: (question) => void turn("question", question) },
       );
     } else {
       const source =
@@ -795,12 +809,23 @@ export function mountStudy(
       panel.append(scout, review, plan, coach);
       tutor.append(panel);
     }
+    // Only the newest drawing is on the board; older annotations were replaced by it.
+    const lastAnnotated = current.messages.filter((m) => m.role === "agent" && m.annotated).at(-1)?.id;
     for (const m of current.messages) {
       const article = el("article", "", `study-message ${m.role}`);
       article.append(
         el("span", m.role === "agent" ? "AFTERCLASS" : "YOU", "study-eyebrow"),
         el("p", m.text),
       );
+      if (m.id === lastAnnotated)
+        article.append(
+          boardOpen
+            ? el("span", "✎ Marked on your whiteboard", "study-annotated")
+            : btn("✎ See it on the whiteboard", () => {
+                boardOpen = true;
+                renderLesson();
+              }, "study-citation study-annotated"),
+        );
       for (const c of m.citations) {
         const source = current.sources.find((s) => s.id === c.sourceId);
         if (

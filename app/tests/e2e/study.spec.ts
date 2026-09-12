@@ -36,6 +36,8 @@ async function mockClassroom(page: Page) {
       data = lesson;
     } else if (path === "/api/lessons/lesson-1/turn") {
       const diagnostic = body.intent === "teach";
+      // Answers sent from the whiteboard tab also carry a picture; only questions get the annotated reply here.
+      const whiteboard = body.intent === "question" && !!body.boardSnapshot;
       if (!diagnostic)
         lesson.messages.push({
           id: "student-1",
@@ -47,10 +49,12 @@ async function mockClassroom(page: Page) {
       lesson.messages.push({
         id: `agent-${lesson.revision}`,
         role: "agent",
-        action: diagnostic ? "diagnostic" : "reteach",
+        action: diagnostic ? "diagnostic" : whiteboard ? "answer" : "reteach",
         text: diagnostic
           ? "What do plants get from sunlight?"
-          : "Sunlight gives plants energy to make food. Find the glucose in your teacher’s notes.",
+          : whiteboard
+            ? "Your rectangle is the leaf. Light enters it from the side you marked."
+            : "Sunlight gives plants energy to make food. Find the glucose in your teacher’s notes.",
         citations: diagnostic
           ? []
           : [
@@ -60,8 +64,25 @@ async function mockClassroom(page: Page) {
                 quote: "Plants use light energy to make glucose",
               },
             ],
+        ...(whiteboard ? { annotated: true } : {}),
         createdAt: lesson.createdAt,
       });
+      if (whiteboard) {
+        // A whiteboard question: annotate the student's rectangle the way the tutor would.
+        const shape = lesson.board.scene?.elements.find(
+          (e) => e.type === "rectangle" && !e.isDeleted && !e.customData,
+        ) as { id: string; x: number; y: number; width: number; height: number } | undefined;
+        lesson.board = {
+          ...lesson.board,
+          items: shape
+            ? [
+                { id: "tutor-0", kind: "ellipse", x: 0, y: 0, width: 0, height: 0, text: "Your leaf", target: shape.id },
+                { id: "tutor-1", kind: "text", x: shape.x + shape.width + 140, y: shape.y - 70, width: 0, height: 0, text: "Light enters here", target: shape.id },
+                { id: "tutor-2", kind: "arrow", x: shape.x - 160, y: shape.y + shape.height + 90, width: 0, height: 0, text: "energy", target: shape.id },
+              ]
+            : [],
+        };
+      }
       if (body.catchUpMinutes || lesson.catchUp) {
         const note = { text: "Light supplies energy, not food.", citations: [{ sourceId: "source-a", passageId: "passage-a", quote: "Sunlight supplies energy" }] };
         lesson.catchUp = {
@@ -416,6 +437,62 @@ test("unavailable services retain a usable connection screen without fabricated 
   await expect(page.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "My learning", exact: true })).toBeDisabled();
   await expect(page.locator(".catchup-update")).toHaveCount(0);
+});
+
+test("asking from the whiteboard sends a picture and draws the tutor's marks beside the student's shape", async ({ page }, testInfo) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  const requests = await mockClassroom(page);
+  await chooseMaterials(page);
+  await page.getByRole("button", { name: "Teach me this topic →", exact: true }).click();
+  await page.getByRole("button", { name: "Whiteboard", exact: true }).click();
+  await expect(page.locator(".excalidraw canvas").first()).toBeVisible();
+  await page.getByTitle(/^Rectangle/).click();
+  const canvas = page.locator(".excalidraw canvas").last();
+  const bounds = (await canvas.boundingBox())!;
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + 200);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width / 2 + 120, bounds.y + 260, { steps: 3 });
+  await page.mouse.up();
+  await expect.poll(() => requests.filter(r => r.path.endsWith("/board")).at(-1)?.body.scene.elements
+    .some((e: { type: string; width: number }) => e.type === "rectangle" && e.width > 50)).toBe(true);
+  await page.getByRole("textbox", { name: "Ask about your drawing" }).fill("Is this the leaf?");
+  await page.getByRole("button", { name: "Ask the tutor ✎", exact: true }).click();
+  await expect(page.getByText("Your rectangle is the leaf. Light enters it from the side you marked.", { exact: true })).toBeVisible();
+  const turn = requests.find(r => r.path.endsWith("/turn") && r.body.intent === "question")!;
+  expect(turn.body.text).toBe("Is this the leaf?");
+  expect(turn.body.boardSnapshot).toMatch(/^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/);
+  expect(turn.body.boardSnapshot.length).toBeLessThan(2_000_000);
+  // The whiteboard stays open with the tutor's marks; the next edit saves them into the same scene.
+  await expect(page.locator(".excalidraw canvas").first()).toBeVisible();
+  await expect(page.getByText("✎ Marked on your whiteboard", { exact: true })).toBeVisible();
+  await page.getByRole("textbox", { name: "Whiteboard text" }).fill("My note");
+  await page.getByRole("button", { name: "Add text", exact: true }).click();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  type Saved = { id: string; type: string; x: number; y: number; width: number; height: number; strokeColor: string; text?: string; customData?: { boardItemId?: string } };
+  const saved: Saved[] = requests.filter(r => r.path.endsWith("/board")).at(-1)!.body.scene.elements;
+  const marks = saved.filter(e => e.customData?.boardItemId);
+  expect(marks.map(e => e.type).sort()).toEqual(["arrow", "arrow", "ellipse", "text", "text", "text"]);
+  expect(marks.every(e => e.strokeColor === "#187c55")).toBe(true);
+  const leaf = saved.find(e => e.type === "rectangle" && !e.customData)!;
+  const ring = marks.find(e => e.type === "ellipse")!;
+  expect(ring.x).toBeLessThan(leaf.x);
+  expect(ring.y).toBeLessThan(leaf.y);
+  expect(ring.x + ring.width).toBeGreaterThan(leaf.x + leaf.width);
+  expect(ring.y + ring.height).toBeGreaterThan(leaf.y + leaf.height);
+  expect(marks.filter(e => e.type === "text").map(e => e.text).sort()).toEqual(["Light enters here", "Your leaf", "energy"]);
+  expect(saved.some(e => e.text === "My note" && !e.customData)).toBe(true);
+  expect(errors).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath("whiteboard-annotations.png"), fullPage: true });
+  // Leaving and returning rebuilds the same marks from the saved lesson rather than duplicating them.
+  await page.getByRole("button", { name: "Light notes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "✎ See it on the whiteboard", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "✎ See it on the whiteboard", exact: true }).click();
+  await expect(page.locator(".excalidraw canvas").first()).toBeVisible();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  const again: Saved[] = requests.filter(r => r.path.endsWith("/board")).at(-1)!.body.scene.elements;
+  expect(again.filter(e => e.customData?.boardItemId).length).toBe(6);
 });
 
 test("Excalidraw draws native shapes, restores scenes and loads local fonts", async ({ page }, testInfo) => {

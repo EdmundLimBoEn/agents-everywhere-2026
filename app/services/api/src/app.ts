@@ -442,8 +442,9 @@ export function createApp({
         });
       }
       if (parts.length === 4 && parts[3] === "turn" && method === "POST") {
-        const input = v.turn(await body(request));
-        const fingerprint = JSON.stringify(input);
+        const input = v.turn(await body(request, v.BOARD_SNAPSHOT_LIMIT + 1_000_000));
+        // A retry may carry a fresh whiteboard picture; the student's words decide whether it is the same turn.
+        const fingerprint = JSON.stringify({ ...input, boardSnapshot: undefined });
         return limited(key, async () => {
           // Check current Google access even on an idempotent retry.
           await refresh();
