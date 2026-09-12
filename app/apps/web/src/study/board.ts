@@ -1,146 +1,91 @@
+import { createElement } from "react";
+import { createRoot } from "react-dom/client";
+import { Excalidraw, CaptureUpdateAction, convertToExcalidrawElements, restoreElements } from "@excalidraw/excalidraw";
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import type { ExcalidrawImperativeAPI, BinaryFiles } from "@excalidraw/excalidraw/types";
 import type { Board } from "../../../../packages/shared-types/src/study";
-export function mountBoard(
-  host: HTMLElement,
-  initial: Board,
-  save: (board: Board) => Promise<void>,
-) {
-  let board: Board = structuredClone(initial),
-    drawing = false;
-  const ns = "http://www.w3.org/2000/svg";
+import "@excalidraw/excalidraw/index.css";
+
+(window as Window & { EXCALIDRAW_ASSET_PATH?: string }).EXCALIDRAW_ASSET_PATH = new URL("./", location.href).href;
+
+export function mountBoard(host: HTMLElement, initial: Board, save: (board: Board) => Promise<void>) {
+  const board = structuredClone(initial);
+  // Retain edits to existing tutor shapes; replace only changed source diagrams.
+  const changed = new Set(board.items.filter(item =>
+    JSON.stringify(item) !== JSON.stringify(board.scene?.sourceItems.find(old => old.id === item.id)),
+  ).map(item => item.id));
+  const existing = (board.scene?.elements || []).filter(element => {
+    const source = (element.customData as { boardItemId?: string } | undefined)?.boardItemId;
+    return !source || (!changed.has(source) && board.items.some(item => item.id === source));
+  });
+  const added = board.items.filter(item => !board.scene || changed.has(item.id)).flatMap(item => {
+    const common = { x: item.x, y: item.y, customData: { boardItemId: item.id } };
+    return convertToExcalidrawElements(item.kind === "text"
+      ? [{ ...common, type: "text", text: item.text }]
+      : [
+          { ...common, type: item.kind, width: item.width, height: item.height },
+          { ...common, x: item.x + 8, y: item.y + 8, type: "text", text: item.text },
+        ]);
+  });
+  const strokes = board.scene ? [] : board.strokes.filter(s => s.points.length).flatMap(stroke => {
+    const first = stroke.points[0];
+    return convertToExcalidrawElements([{ type: "line", x: first.x, y: first.y,
+      strokeColor: stroke.color, points: stroke.points.map(p => [p.x - first.x, p.y - first.y]) }]);
+  });
+  const elements = restoreElements([...existing, ...added, ...strokes] as ExcalidrawElement[], null);
   const bar = document.createElement("div");
   bar.className = "study-tools";
-  const canvas = document.createElementNS(ns, "svg");
-  canvas.setAttribute("viewBox", "0 0 900 500");
-  canvas.setAttribute(
-    "aria-label",
-    "Lesson whiteboard. Draw with your pointer or add text.",
-  );
-  canvas.classList.add("study-board");
   const status = document.createElement("span");
   status.setAttribute("role", "status");
+  let signature = "", api: ExcalidrawImperativeAPI | undefined, generation = 0;
   async function persist() {
-    const snapshot = structuredClone(board);
+    const current = ++generation;
     status.textContent = "Saving…";
     try {
-      await save(snapshot);
-      status.textContent = "Saved";
+      await save(structuredClone(board));
+      if (current === generation) status.textContent = "Saved";
     } catch {
-      status.textContent = "Not saved. Retry save.";
+      if (current === generation) status.textContent = "Not saved. Retry save.";
     }
-  }
-  function button(text: string, fn: () => void) {
-    const b = document.createElement("button");
-    b.textContent = text;
-    b.type = "button";
-    b.onclick = fn;
-    bar.append(b);
   }
   const input = document.createElement("input");
   input.placeholder = "Add a thought…";
   input.setAttribute("aria-label", "Whiteboard text");
-  bar.append(input);
-  button("Add text", () => {
-    if (!input.value.trim()) return;
-    board.items.push({
-      id: crypto.randomUUID(),
-      kind: "text",
-      x: 30,
-      y: 35 + ((board.items.length * 45) % 400),
-      width: 700,
-      height: 40,
-      text: input.value.trim(),
-    });
+  const add = document.createElement("button");
+  add.type = "button";
+  add.textContent = "Add text";
+  add.onclick = () => {
+    if (!input.value.trim() || !api) return;
+    api.updateScene({ captureUpdate: CaptureUpdateAction.IMMEDIATELY, elements: [...api.getSceneElements(), ...convertToExcalidrawElements([
+      { type: "text", x: 30, y: 35 + api.getSceneElements().length * 40, text: input.value.trim() },
+    ])] });
     input.value = "";
-    render();
-    void persist();
-  });
-  button("Remove last note", () => {
-    board.items.pop();
-    render();
-    void persist();
-  });
-  button("Undo drawing", () => {
-    board.strokes.pop();
-    render();
-    void persist();
-  });
-  button("Save", () => void persist());
-  bar.append(status);
-  function render() {
-    canvas.replaceChildren();
-    for (const item of board.items) {
-      if (item.kind !== "text") {
-        const shape = document.createElementNS(
-          ns,
-          item.kind === "arrow" ? "line" : "rect",
-        );
-        const props =
-          item.kind === "arrow"
-            ? {
-                x1: item.x,
-                y1: item.y,
-                x2: item.x + item.width,
-                y2: item.y + item.height,
-              }
-            : { x: item.x, y: item.y, width: item.width, height: item.height };
-        for (const [k, v] of Object.entries(props))
-          shape.setAttribute(k, String(v));
-        shape.setAttribute("stroke", "#47785b");
-        shape.setAttribute("fill", "none");
-        shape.setAttribute("stroke-width", "2");
-        canvas.append(shape);
-      }
-      const text = document.createElementNS(ns, "text");
-      text.setAttribute("x", String(item.x + 8));
-      text.setAttribute("y", String(item.y + 24));
-      text.setAttribute("fill", "#23394a");
-      text.setAttribute("font-size", "19");
-      text.textContent = item.text;
-      canvas.append(text);
-    }
-    for (const stroke of board.strokes) {
-      const line = document.createElementNS(ns, "polyline");
-      line.setAttribute(
-        "points",
-        stroke.points.map((p) => `${p.x},${p.y}`).join(" "),
-      );
-      line.setAttribute("fill", "none");
-      line.setAttribute("stroke", stroke.color);
-      line.setAttribute("stroke-width", "3");
-      line.setAttribute("stroke-linecap", "round");
-      canvas.append(line);
-    }
-  }
-  const point = (e: PointerEvent) => {
-    const p = canvas.createSVGPoint();
-    p.x = e.clientX;
-    p.y = e.clientY;
-    const m = canvas.getScreenCTM();
-    const local = m ? p.matrixTransform(m.inverse()) : p;
-    return { x: local.x, y: local.y };
   };
-  canvas.onpointerdown = (e) => {
-    drawing = true;
-    canvas.setPointerCapture(e.pointerId);
-    board.strokes.push({ points: [point(e)], color: "#274738" });
-    render();
-  };
-  canvas.onpointermove = (e) => {
-    if (drawing) {
-      board.strokes.at(-1)!.points.push(point(e));
-      render();
-    }
-  };
-  canvas.onpointerup = () => {
-    if (drawing) {
-      drawing = false;
-      void persist();
-    }
-  };
-  canvas.onpointercancel = () => {
-    drawing = false;
-    void persist();
-  };
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.textContent = "Save";
+  retry.onclick = () => void persist();
+  bar.append(input, add, retry, status);
+  const canvas = document.createElement("div");
+  canvas.className = "study-excalidraw";
+  canvas.setAttribute("aria-label", "Lesson whiteboard — Excalidraw");
   host.append(bar, canvas);
-  render();
+  const root = createRoot(canvas);
+  root.render(createElement(Excalidraw, {
+    initialData: { elements, files: (board.scene?.files || {}) as BinaryFiles,
+      appState: { viewBackgroundColor: "#fffdf7" }, scrollToContent: true },
+    excalidrawAPI: instance => { api = instance; },
+    validateEmbeddable: false,
+    UIOptions: { canvasActions: { loadScene: true, export: { saveFileToDisk: true } } },
+    onChange: (elements, _state, files) => {
+      const scene = { elements: elements.map(element => ({ ...element })), files: { ...files }, sourceItems: board.items };
+      const next = JSON.stringify(scene);
+      if (next === signature) return;
+      const first = !signature;
+      signature = next;
+      board.scene = scene;
+      if (!first) void persist();
+    },
+  }));
+  return () => root.unmount();
 }

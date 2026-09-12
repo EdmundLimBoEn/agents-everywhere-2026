@@ -15,17 +15,17 @@ html, body { margin: 0; }
 .study-app * {
   box-sizing: border-box;
 }
-.study-app button,
-.study-app input,
-.study-app textarea,
-.study-app select {
+.study-app button:not(:where(.excalidraw *)),
+.study-app input:not(:where(.excalidraw *)),
+.study-app textarea:not(:where(.excalidraw *)),
+.study-app select:not(:where(.excalidraw *)) {
   font: inherit;
 }
-.study-app button,
-.study-app select {
+.study-app button:not(:where(.excalidraw *)),
+.study-app select:not(:where(.excalidraw *)) {
   cursor: pointer;
 }
-.study-app button {
+.study-app button:not(:where(.excalidraw *)) {
   border: 1px solid var(--line);
   background: transparent;
   border-radius: 7px;
@@ -35,10 +35,10 @@ html, body { margin: 0; }
     background 0.16s,
     transform 0.16s;
 }
-.study-app button:hover {
+.study-app button:not(:where(.excalidraw *)):hover {
   background: #edf0e6;
 }
-.study-app button:disabled {
+.study-app button:not(:where(.excalidraw *)):disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
@@ -135,9 +135,9 @@ html, body { margin: 0; }
   gap: 12px;
   margin: 8px 0 30px;
 }
-.study-app select,
-.study-app input:not([type="checkbox"]),
-.study-app textarea {
+.study-app select:not(:where(.excalidraw *)),
+.study-app input:not(:where(.excalidraw *)):not([type="checkbox"]),
+.study-app textarea:not(:where(.excalidraw *)) {
   background: #fffefa;
   color: var(--ink);
   border: 1px solid var(--line);
@@ -169,7 +169,7 @@ html, body { margin: 0; }
   gap: 18px;
   cursor: pointer;
 }
-.study-app input[type="checkbox"] {
+.study-app input:not(:where(.excalidraw *))[type="checkbox"] {
   accent-color: var(--green);
   width: 19px;
   height: 19px;
@@ -794,3 +794,7 @@ html, body { margin: 0; }
 .catchup-intro .study-deck { font-size: 16px; }
 .catchup-controls label, .catchup-controls input, .catchup-controls select { font-size: 14px !important; }
 .catchup-status, .catchup-status button, .catchup-step .study-meta, .catchup-source, .catchup-reason > button:not(.catchup-source) { font-size: 13px !important; }
+
+[data-board-host] { padding: 12px; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+[data-board-host] > .study-tools { flex-shrink: 0; }
+.study-excalidraw { flex: 1; min-height: 0; width: 100%; position: relative; }

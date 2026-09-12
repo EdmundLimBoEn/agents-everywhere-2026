@@ -1,6 +1,6 @@
 import {
   mkdir,
-  copyFile,
+  cp,
   readdir,
   readFile,
   writeFile,
@@ -41,15 +41,21 @@ const ui = await Bun.build({
   entrypoints: [resolve(root, "apps/web/src/entry.ts")],
   outdir: resolve(root, "dist/web"),
   target: "browser",
-  minify: false,
+  minify: true,
+  define: { "process.env.NODE_ENV": JSON.stringify("production") },
+  conditions: ["production"],
   sourcemap: "external",
 });
 if (!ui.success) throw new AggregateError(ui.logs, "UI build failed");
 for (const name of await readdir(resolve(root, "dist/web")))
-  await copyFile(
+  await cp(
     resolve(root, "dist/web", name),
     resolve(root, "dist/extension", name),
+    { recursive: true },
   );
+for (const destination of ["dist/web", "dist/extension"])
+  await cp(resolve(root, "node_modules/@excalidraw/excalidraw/dist/prod/fonts"),
+    resolve(root, destination, "fonts"), { recursive: true });
 const ext = await Bun.build({
   entrypoints: ["background", "content", "options"].map((n) =>
     resolve(root, `apps/extension/src/${n}.ts`),
@@ -101,7 +107,7 @@ const manifest = {
   ],
   content_security_policy: {
     extension_pages:
-      "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline'; frame-src 'self' blob:; connect-src 'self' https://api.openai.com " +
+      "script-src 'self'; object-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; frame-src 'self' blob:; connect-src 'self' https://api.openai.com " +
       origin.origin,
   },
   ...(process.env.GOOGLE_CLIENT_ID

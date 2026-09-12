@@ -344,3 +344,26 @@ test("Classroom deadlines retain UTC time and absent deadlines stay unknown", as
   expect(posts[0]?.publishedAt).toBe("2026-09-12T04:00:00Z");
   expect(posts[1]?.dueAt).toBeUndefined();
 });
+
+test("Google permission errors identify missing consent and disabled APIs", async () => {
+  for (const [reason, expected] of [
+    ["ACCESS_TOKEN_SCOPE_INSUFFICIENT", "Disconnect Google in extension settings"],
+    ["SERVICE_DISABLED", "Enable the Google Classroom API"],
+    ["DOMAIN_POLICY", "school administrator"],
+  ]) {
+    const s = stub((url) => url.pathname.endsWith("/courseWork")
+      ? Response.json({ error: { details: [{ reason }], message: "private upstream detail" } }, { status: 403 })
+      : {});
+    const result = await new GoogleClassroom("secret", s.fetcher).posts("class1");
+    expect(result.warnings[0]).toContain(expected!);
+    expect(result.warnings[0]).not.toContain("private upstream detail");
+  }
+});
+
+test("unclassified coursework denial explains account role even with a non-JSON response", async () => {
+  const s = stub((url) => url.pathname.endsWith("/courseWork")
+    ? new Response("Forbidden", { status: 403 }) : {});
+  const result = await new GoogleClassroom("secret", s.fetcher).posts("class1");
+  expect(result.warnings[0]).toContain("student");
+  expect(result.warnings[0]).toContain("teacher");
+});

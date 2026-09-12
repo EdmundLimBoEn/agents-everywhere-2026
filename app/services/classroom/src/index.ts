@@ -53,13 +53,32 @@ export class GoogleClassroom {
     } catch {
       throw new Error("Google request timed out or could not connect");
     }
+    if (response.status === 403) {
+      const body = await response.json().catch(() => null);
+      const error = body?.error;
+      const reasons = [
+        ...(Array.isArray(error?.details) ? error.details : []),
+        ...(Array.isArray(error?.errors) ? error.errors : []),
+      ].map((detail) => detail?.reason);
+      let message = "Google denied access to this resource";
+      if (reasons.some((r) => ["ACCESS_TOKEN_SCOPE_INSUFFICIENT", "insufficientPermissions"].includes(r)))
+        message = "Google authorization is missing a required permission. Disconnect Google in extension settings, then reconnect and approve the requested permissions.";
+      else if (reasons.some((r) => ["SERVICE_DISABLED", "accessNotConfigured"].includes(r))) {
+        const service = new URL(url).hostname === "classroom.googleapis.com"
+          ? "Google Classroom API" : new URL(url).hostname === "docs.googleapis.com"
+            ? "Google Docs API" : "Google Drive API";
+        message = `Enable the ${service} in the Google Cloud project used by this extension's OAuth client, then retry.`;
+      } else if (reasons.some((r) => ["DOMAIN_POLICY", "domainPolicy"].includes(r)))
+        message = "Your school administrator has restricted this app's access. Ask them to allow the app and its requested Google permissions.";
+      else if (new URL(url).hostname === "classroom.googleapis.com" && /\/courseWork(?:\/|$)/.test(new URL(url).pathname))
+        message += ". Check that the connected Google account is enrolled as a student in this class. This extension requests student coursework access; a teacher account needs teacher coursework permission. School policy may also restrict access.";
+      throw new GoogleError(message, response.status);
+    }
     if (!response.ok)
       throw new GoogleError(
         response.status === 401
           ? "Google authorization expired; reconnect your account"
-          : response.status === 403
-            ? "Google denied access to this resource"
-            : response.status === 404
+          : response.status === 404
               ? "Google resource is unavailable"
               : `Google request failed (${response.status})`,
         response.status,

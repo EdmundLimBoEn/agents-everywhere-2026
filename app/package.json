@@ -18,12 +18,17 @@
     "check": "bun run typecheck && bun run test && bun run build"
   },
   "dependencies": {
-    "pdfjs-dist": "^5.4.149"
+    "@excalidraw/excalidraw": "^0.18.1",
+    "pdfjs-dist": "^5.4.149",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0",
     "@types/bun": "^1.2.22",
     "@types/chrome": "^0.1.12",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "typescript": "^5.9.2"
   }
 }

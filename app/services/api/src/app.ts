@@ -33,10 +33,10 @@ const json = (data: unknown, status = 200) =>
       "Cache-Control": "no-store",
     },
   });
-async function body(request: Request): Promise<unknown> {
+async function body(request: Request, limit = 300000): Promise<unknown> {
   if (!request.headers.get("content-type")?.startsWith("application/json"))
     throw new v.HttpError(415, "Use application/json");
-  if (Number(request.headers.get("content-length")) > 300000)
+  if (Number(request.headers.get("content-length")) > limit)
     throw new v.HttpError(413, "Request is too large");
   const reader = request.body?.getReader();
   if (!reader) throw new v.HttpError(400, "Request body required");
@@ -46,7 +46,7 @@ async function body(request: Request): Promise<unknown> {
     const r = await reader.read();
     if (r.done) break;
     size += r.value.length;
-    if (size > 300000) {
+    if (size > limit) {
       await reader.cancel();
       throw new v.HttpError(413, "Request is too large");
     }
@@ -293,7 +293,7 @@ export function createApp({
           });
       }
       if (parts.length === 4 && parts[3] === "board" && method === "PUT") {
-        const board = v.board(await body(request));
+        const board = v.board(await body(request, 10_000_000));
         return limited(key, async () => {
           await refresh();
           lesson = { ...lesson!, board, updatedAt: new Date().toISOString() };

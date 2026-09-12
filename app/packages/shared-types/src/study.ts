@@ -61,7 +61,15 @@ export type BoardItem = {
   text: string;
 };
 export type BoardStroke = { points: { x: number; y: number }[]; color: string };
-export type Board = { items: BoardItem[]; strokes: BoardStroke[] };
+export type Board = {
+  items: BoardItem[];
+  strokes: BoardStroke[];
+  scene?: {
+    elements: Record<string, unknown>[];
+    files: Record<string, unknown>;
+    sourceItems: BoardItem[];
+  };
+};
 export type Evidence = {
   id: string;
   lessonId: string;

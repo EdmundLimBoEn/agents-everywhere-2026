@@ -1204,6 +1204,39 @@
               ]
             },
             "maxItems": 300
+          },
+          "scene": {
+            "type": "object",
+            "description": "Embedded Excalidraw scene. Board requests are limited to 10 MB.",
+            "required": [
+              "elements",
+              "files",
+              "sourceItems"
+            ],
+            "properties": {
+              "elements": {
+                "type": "array",
+                "maxItems": 2000,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "files": {
+                "type": "object",
+                "maxProperties": 100,
+                "additionalProperties": {
+                  "type": "object"
+                }
+              },
+              "sourceItems": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "$ref": "#/components/schemas/BoardItem"
+                }
+              }
+            }
           }
         },
         "required": [

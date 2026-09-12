@@ -88,6 +88,7 @@ export function mountStudy(
     voiceActive = Boolean((event as CustomEvent<boolean>).detail);
     setBoardBusy(busy || voiceActive);
   });
+  let disposeBoard: (() => void) | undefined;
   let pdfUrl = "";
   function releasePDF() {
     if (pdfUrl) {
@@ -212,6 +213,8 @@ export function mountStudy(
     }
   }
   function renderPicker() {
+    disposeBoard?.();
+    disposeBoard = undefined;
     root.dispatchEvent(new CustomEvent("study:close"));
     releasePDF();
     if (lesson?.catchUp) dashboardLesson = lesson;
@@ -527,6 +530,8 @@ export function mountStudy(
     releasePDF();
     main.className = "";
     const current = lesson;
+    disposeBoard?.();
+    disposeBoard = undefined;
     main.replaceChildren();
     const title = el("div", "", "study-lesson-title");
     title.append(
@@ -594,7 +599,7 @@ export function mountStudy(
             "study-warning",
           ),
         );
-      mountBoard(paper, draft?.draft || current.board, (board) =>
+      disposeBoard = mountBoard(paper, draft?.draft || current.board, (board) =>
         saveBoard(current.id, board),
       );
     } else {

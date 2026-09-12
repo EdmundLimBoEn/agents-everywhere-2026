@@ -133,5 +133,32 @@ export function board(value: unknown): Board {
         throw new HttpError(400, "Invalid board point");
     }
   }
+  if (b.scene !== undefined) {
+    const scene = object(b.scene);
+    if (!Array.isArray(scene.elements) || scene.elements.length > 2000)
+      throw new HttpError(400, "Whiteboard has too many elements");
+    const elementIds = new Set<string>();
+    for (const value of scene.elements) {
+      const element = object(value);
+      const key = id(element.id);
+      if (elementIds.has(key) || !["rectangle", "diamond", "ellipse", "arrow", "line", "freedraw", "text", "image", "frame", "magicframe"].includes(String(element.type)) ||
+          !["x", "y", "width", "height"].every(k => typeof element[k] === "number" && Number.isFinite(element[k]) && Math.abs(element[k] as number) <= 1000000))
+        throw new HttpError(400, "Invalid Excalidraw element");
+      elementIds.add(key);
+      if (element.link != null && !/^https?:\/\//i.test(string(element.link, 2000)))
+        throw new HttpError(400, "Invalid whiteboard link");
+    }
+    const files = object(scene.files);
+    if (Object.keys(files).length > 100) throw new HttpError(400, "Too many whiteboard images");
+    for (const [key, value] of Object.entries(files)) {
+      id(key);
+      const file = object(value);
+      if (file.id !== key || !["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"].includes(String(file.mimeType)) ||
+          !String(file.dataURL).startsWith(`data:${file.mimeType};base64,`) ||
+          !/^[A-Za-z0-9+/=\s]*$/.test(String(file.dataURL).split(",")[1] || ""))
+        throw new HttpError(400, "Invalid whiteboard image");
+    }
+    board({ items: scene.sourceItems, strokes: [] });
+  }
   return b as Board;
 }
