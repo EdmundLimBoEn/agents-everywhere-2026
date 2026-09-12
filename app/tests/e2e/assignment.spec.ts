@@ -92,6 +92,7 @@ test("assignment workspace prepares, saves, gives cited help, reviews and resume
   await expect(draft).toHaveValue("Plants use sunlight as energy to make glucose.");
   await page.getByRole("button", { name: "Check my draft", exact: true }).click();
   await expect(page.getByText("Your explanation identifies energy. Add chlorophyll and a source reference before submitting.", { exact: true })).toBeVisible();
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
   await page.screenshot({ path: testInfo.outputPath("assignment-desktop.png"), fullPage: true });
   await expect(page.getByRole("link", { name: /Classroom/ }).first()).toHaveAttribute("href", assignment.alternateLink!);
   expect(requests.some(r => /submit|turnIn/.test(r.path))).toBe(false);
@@ -151,4 +152,46 @@ test("a stale revision reloads requirements without losing the local draft", asy
   expect(attempts[1]).toMatchObject({ action: "prepare", revision: 9, draft: "My local draft must survive the conflict." });
   await expect(draft).toHaveValue("My local draft must survive the conflict.");
   await expect(page.getByRole("button", { name: "Check my draft", exact: true })).toBeEnabled();
+});
+
+test("review gaps lead back to the draft and copying transfers the student's exact text", async ({ page }) => {
+  await mockAssignment(page);
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (text: string) => { (window as any).copiedDraft = text; } } });
+  });
+  await openAssignment(page);
+  await expect(page.getByRole('button', { name: 'Copy my draft', exact: true })).toBeDisabled();
+  const draft = page.getByRole('textbox', { name: 'Assignment draft', exact: true });
+  const text = 'Plants use sunlight as energy to make glucose.';
+  await draft.fill(text);
+  await expect(page.getByText('8 words · 46 / 20,000 characters', { exact: true })).toBeVisible();
+  await draft.press('Control+s');
+  await expect(page.getByText('Saved draft', { exact: true })).toBeVisible();
+  await expect(draft).toBeFocused();
+  await page.getByRole('button', { name: 'Check my draft', exact: true }).click();
+  await expect(page.getByRole('progressbar')).toHaveAttribute('value', '1');
+  await page.getByRole('button', { name: 'Find in my draft ↗', exact: true }).click();
+  await expect(draft).toBeFocused();
+  expect(await draft.evaluate((e: HTMLTextAreaElement) => e.value.slice(e.selectionStart, e.selectionEnd))).toBe(text);
+  await page.getByRole('button', { name: 'Work on this gap ↗', exact: true }).first().click();
+  await expect(draft).toBeFocused();
+  await expect(page.locator('.assignment-focus-note')).toHaveText('Explain where chlorophyll fits into the process.');
+  await page.getByRole('button', { name: 'Copy my draft', exact: true }).click();
+  expect(await page.evaluate(() => (window as any).copiedDraft)).toBe(text);
+  await expect(page.getByText('Copied. Paste your draft into Classroom when ready.', { exact: true })).toBeVisible();
+});
+
+test("clipboard denial selects the draft without changing or losing it", async ({ page }) => {
+  await mockAssignment(page);
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: async () => { throw new Error('Denied'); } } });
+  });
+  await openAssignment(page);
+  const draft = page.getByRole('textbox', { name: 'Assignment draft', exact: true });
+  await draft.fill('My own answer.');
+  await page.getByRole('button', { name: 'Copy my draft', exact: true }).click();
+  await expect(draft).toBeFocused();
+  await expect(draft).toHaveValue('My own answer.');
+  expect(await draft.evaluate((e: HTMLTextAreaElement) => e.value.slice(e.selectionStart, e.selectionEnd))).toBe('My own answer.');
+  await expect(page.getByText('Clipboard unavailable. Your draft is selected; use Copy to transfer it.', { exact: true })).toBeVisible();
 });

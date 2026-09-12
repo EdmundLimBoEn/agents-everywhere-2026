@@ -12,6 +12,11 @@ export function mountAssignment(root: HTMLElement, api: ApiClient, initial: Less
   let reviewedDraft = initial.assignment?.review ? initial.assignment.draft : null;
   let draft = lesson.assignment?.draft ?? '';
   let question = '';
+  let focusFeedback = '';
+  const reveal = (target: HTMLElement | null) => {
+    target?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center' });
+    target?.focus({ preventScroll: true });
+  };
   let busy = false;
   let error = '';
   let activity = 'Your assignment and class materials, in one place.';
@@ -58,6 +63,8 @@ export function mountAssignment(root: HTMLElement, api: ApiClient, initial: Less
     if (!pending || pending.action !== action || pending.draft !== draft || pending.question !== (action === 'help' ? question : undefined) || pending.revision !== lesson.revision) {
       pending = { action, assignmentId: lesson.assignment?.assignmentId, draft, question: action === 'help' ? question : undefined, revision: lesson.revision, requestId: crypto.randomUUID() };
     }
+    const previousEditor = root.querySelector<HTMLTextAreaElement>('#assignment-draft-input');
+    const caret = previousEditor ? [previousEditor.selectionStart, previousEditor.selectionEnd] as const : undefined;
     busy = true; error = '';
     activity = { prepare: 'Reading assignment requirements and finding class materials…', save: 'Saving your draft…', help: 'Looking through your materials for a useful hint…', review: 'Checking your draft against each requirement…' }[action];
     render();
@@ -65,6 +72,7 @@ export function mountAssignment(root: HTMLElement, api: ApiClient, initial: Less
       const next = await api<Lesson>(`/api/lessons/${encodeURIComponent(lesson.id)}/assignment`, { method: 'POST', body: pending });
       lesson = next; draft = next.assignment?.draft ?? draft; pending = undefined;
       if (action === 'review') reviewedDraft = draft;
+      if (action === 'review' || action === 'prepare') focusFeedback = '';
       if (!next.assignment?.review) reviewedDraft = null;
       options.onLesson(next);
       activity = { prepare: 'Requirements and supporting materials are ready.', save: 'Draft saved. Pick up here whenever you’re ready.', help: 'A hint is ready, grounded in your class materials.', review: 'Draft checked. Review the feedback before making your next move.' }[action];
@@ -75,7 +83,15 @@ export function mountAssignment(root: HTMLElement, api: ApiClient, initial: Less
         catch { /* Keep the original revision and request ID until a retry can reconcile. */ }
       }
       activity = 'Your draft is still here. Retry when you’re ready.';
-    } finally { busy = false; render(); }
+    } finally {
+      busy = false; render();
+      if (action === 'save' && caret) {
+        const editor = root.querySelector<HTMLTextAreaElement>('#assignment-draft-input');
+        editor?.focus({ preventScroll: true }); editor?.setSelectionRange(...caret);
+      }
+      if (!error && action === 'review') reveal(root.querySelector('#assignment-review'));
+      if (!error && action === 'help') reveal(root.querySelector('.assignment-help'));
+    }
   }
   let sourcePane: HTMLElement;
   function renderSource() {
@@ -162,15 +178,20 @@ export function mountAssignment(root: HTMLElement, api: ApiClient, initial: Less
     const writingHeading = el('div', '', 'assignment-section-heading'); writingHeading.append(el('div', '02 / MAKE PROGRESS', 'study-eyebrow'), el('h2', 'Your thinking goes here.'));
     const draftLabel = el('label', 'Your draft', 'assignment-draft-label'); const editor = el('textarea', '', 'assignment-editor'); editor.id = 'assignment-draft-input'; draftLabel.htmlFor = editor.id;
     editor.value = draft; editor.placeholder = 'Start with what you know. An outline, a first attempt, or a question is enough.'; editor.disabled = busy; editor.maxLength = 20000; editor.setAttribute('aria-label', 'Assignment draft');
+    const focusNote = el('p', focusFeedback, 'assignment-focus-note'); focusNote.hidden = !focusFeedback; focusNote.setAttribute('role', 'status');
+    const count = el('span', '', 'assignment-word-count');
+    const updateCount = () => { const words = draft.trim() ? draft.trim().split(/\s+/u).length : 0; count.textContent = `${words} ${words === 1 ? 'word' : 'words'} · ${draft.length.toLocaleString()} / 20,000 characters`; };
+    updateCount();
     const saveStatus = el('span', dirty() ? 'Unsaved changes' : 'Saved draft', 'assignment-save-status');
-    const save = btn('Save draft', () => void run('save')); save.disabled = busy || !dirty();
+    const save = btn('Save draft', () => void run('save')); save.title = 'Save draft (⌘S / Ctrl+S)'; save.setAttribute('aria-keyshortcuts', 'Control+s Meta+s'); save.disabled = busy || !dirty();
     const reviewButton = btn('Check my draft →', () => void run('review'), 'study-primary'); reviewButton.setAttribute('aria-label', 'Check my draft'); reviewButton.disabled = busy || Boolean(state.requirementsStale) || !draft.trim();
     const outdated = el('p', 'You’ve edited this draft. Check it again for current feedback.', 'assignment-stale'); outdated.hidden = !state.review || draft === reviewedDraft;
     const reviewIsOld = () => { outdated.hidden = !state.review || draft === reviewedDraft; root.querySelector('.assignment-review-results')?.classList.toggle('assignment-review-outdated', draft !== reviewedDraft); };
-    editor.oninput = () => { draft = editor.value; saveStatus.textContent = dirty() ? 'Unsaved changes' : 'Saved draft'; save.disabled = busy || !dirty(); reviewButton.setAttribute('aria-label', 'Check my draft'); reviewButton.disabled = busy || Boolean(state.requirementsStale) || !draft.trim(); reviewIsOld(); };
+    editor.onkeydown = event => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') { event.preventDefault(); if (dirty() && !busy) void run('save'); } };
+    editor.oninput = () => { draft = editor.value; updateCount(); copy.disabled = busy || !draft.trim(); copyStatus.textContent = '';  saveStatus.textContent = dirty() ? 'Unsaved changes' : 'Saved draft'; save.disabled = busy || !dirty(); reviewButton.setAttribute('aria-label', 'Check my draft'); reviewButton.disabled = busy || Boolean(state.requirementsStale) || !draft.trim(); reviewIsOld(); };
     const actions = el('div', '', 'assignment-draft-actions'); actions.append(saveStatus, save, reviewButton);
-    writing.append(writingHeading, draftLabel, editor, actions, el('p', 'Saved to this lesson. Drafting here does not edit or submit your Classroom assignment.', 'assignment-caption'));
-    const help = el('div', '', 'assignment-help');
+    writing.append(writingHeading, focusNote, draftLabel, editor, count, actions, el('p', 'Saved to this lesson. Drafting here does not edit or submit your Classroom assignment.', 'assignment-caption'));
+    const help = el('div', '', 'assignment-help'); help.tabIndex = -1;
     help.append(el('h3', 'A blocker? Let’s work through it.'), el('p', state.blocker ?? 'Ask for a hint, an explanation, or help finding the relevant class notes.'));
     const prompt = el('textarea'); prompt.rows = 2; prompt.placeholder = 'What part are you stuck on?'; prompt.setAttribute('aria-label', 'What are you stuck on?'); prompt.value = question; prompt.maxLength = 2000; prompt.disabled = busy; prompt.oninput = () => { question = prompt.value; };
     const hint = btn('Get a hint ↗', () => void run('help')); hint.setAttribute('aria-label', 'Get a hint'); hint.disabled = busy || Boolean(state.requirementsStale);
@@ -185,14 +206,22 @@ export function mountAssignment(root: HTMLElement, api: ApiClient, initial: Less
       const results = el('div', '', 'assignment-review-results');
       const addressed = state.review.criteria.filter(c => c.status === 'addressed').length;
       const meter = el('div', '', 'assignment-review-meter'); meter.append(el('strong', `${addressed} / ${state.requirements.length}`), el('span', 'requirements addressed · guidance, not a grade'));
-      results.append(meter, el('p', state.review.summary));
+      const progress = el('progress'); progress.max = state.requirements.length; progress.value = addressed; progress.setAttribute('aria-label', 'Requirements addressed in last review');
+      results.append(meter, progress, el('p', state.review.summary));
       const cards = el('div', '', 'assignment-review-cards');
       for (const c of state.review.criteria) {
         const card = el('article', '', `assignment-criterion assignment-criterion-${c.status}`);
         card.append(el('span', c.status, 'assignment-assessment'), el('h3', state.requirements.find(r => r.id === c.requirementId)?.text ?? 'Requirement'), el('p', c.feedback));
         if (c.draftQuote && state.draft.includes(c.draftQuote)) card.append(el('small', 'FROM YOUR DRAFT', 'study-eyebrow'), el('blockquote', c.draftQuote));
         else card.append(el('p', 'No matching draft evidence identified.', 'assignment-caption'));
-        card.append(citations(c.citations)); cards.append(card);
+        const revise = btn(c.draftQuote ? 'Find in my draft ↗' : 'Work on this gap ↗', () => {
+          focusFeedback = c.feedback; focusNote.textContent = focusFeedback; focusNote.hidden = false;
+          reveal(editor);
+          const offset = c.draftQuote ? draft.indexOf(c.draftQuote) : -1;
+          editor.setSelectionRange(offset >= 0 ? offset : draft.length, offset >= 0 ? offset + c.draftQuote.length : draft.length);
+        });
+        revise.disabled = busy;
+        card.append(citations(c.citations), revise); cards.append(card);
       }
       results.append(cards); review.append(results);
     } else review.append(el('p', 'Write a first attempt, then choose “Check my draft”. You’ll see what’s addressed, what needs work, and the draft evidence behind each suggestion.', 'assignment-review-empty'));
@@ -200,11 +229,19 @@ export function mountAssignment(root: HTMLElement, api: ApiClient, initial: Less
 
     const next = el('footer', '', 'assignment-next'); next.id = 'assignment-return'; next.tabIndex = -1;
     const nextCopy = el('div'); nextCopy.append(el('p', 'YOUR NEXT MOVE', 'study-eyebrow'), el('h2', state.review?.nextAction ?? state.nextAction), el('p', 'You stay in control. Review your work and submit it yourself in Classroom.'));
-    next.append(nextCopy);
+    const transfer = el('div', '', 'assignment-transfer');
+    const copyStatus = el('span', '', 'assignment-copy-status'); copyStatus.setAttribute('role', 'status');
+    const copy = btn('Copy my draft', async () => {
+      try { await navigator.clipboard.writeText(draft); copyStatus.textContent = 'Copied. Paste your draft into Classroom when ready.'; }
+      catch { reveal(editor); editor.select(); copyStatus.textContent = 'Clipboard unavailable. Your draft is selected; use Copy to transfer it.'; }
+    });
+    copy.disabled = busy || !draft.trim();
+    transfer.append(copy, copyStatus);
+    next.append(nextCopy, transfer);
     try {
       const url = new URL(post?.alternateLink ?? '');
       if (url.protocol === 'https:' && url.hostname === 'classroom.google.com') {
-        const link = el('a', 'Open assignment in Classroom ↗', 'assignment-classroom-link'); link.href = url.href; link.target = '_blank'; link.rel = 'noopener noreferrer'; next.append(link);
+        const link = el('a', 'Open assignment in Classroom ↗', 'assignment-classroom-link'); link.href = url.href; link.target = '_blank'; link.rel = 'noopener noreferrer'; transfer.append(link);
       } else next.append(el('p', 'Open the original assignment in your Classroom tab.'));
     } catch { next.append(el('p', 'Open the original assignment in your Classroom tab.')); }
     root.append(next);
