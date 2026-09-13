@@ -18,7 +18,24 @@ test("rebuilding removes stale files and keeps server credentials out of bundles
     child.exited, new Response(child.stdout).text(), new Response(child.stderr).text(),
   ]);
   if (status !== 0) throw new Error(errors || result);
-  expect(result).toContain("Built Afterclass web UI and Chrome extension");
+  expect(result).toContain("Built AfterClass web UI and Chrome extension");
+  const manifest = await Bun.file(resolve(root, "dist/extension/manifest.json")).json();
+  expect(manifest.name).toBe("AfterClass — learn inside Classroom");
+  expect(manifest.icons).toEqual({ 32: "mark-32.png", 128: "mark-128.png" });
+  expect(manifest.action.default_icon).toEqual(manifest.icons);
+  for (const size of [32, 128]) {
+    const file = `mark-${size}.png`;
+    const packaged = Buffer.from(await Bun.file(resolve(root, "dist/extension", file)).arrayBuffer());
+    expect(packaged).toEqual(Buffer.from(await Bun.file(resolve(root, "../assets/brand", file)).arrayBuffer()));
+    expect(packaged.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+    expect(packaged.readUInt32BE(16)).toBe(size);
+    expect(packaged.readUInt32BE(20)).toBe(size);
+  }
+  for (const file of ["web/index.html", "extension/study.html", "extension/options.html"]) {
+    const html = await Bun.file(resolve(root, "dist", file)).text();
+    expect(html).toContain("<title>AfterClass · ");
+    expect(html).not.toContain("Afterclass");
+  }
   for (const path of stale) expect(await Bun.file(path).exists()).toBe(false);
   for (const bundle of ["web", "extension"]) {
     const directory = resolve(root, "dist", bundle);

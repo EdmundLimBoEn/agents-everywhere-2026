@@ -1,4 +1,4 @@
-# Afterclass app
+# AfterClass app
 
 Chrome extension + vanilla TypeScript study UI + Bun API + SQLite. Real Classroom materials feed adaptive teaching, a time-budgeted Catch Up plan from a scout, planner, tutor, and reviewer, passage citations, a shared board, learner memory, and optional Realtime voice.
 

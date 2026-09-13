@@ -59,6 +59,7 @@ test("packaged MV3 extension starts its worker, injects Classroom and opens its 
       .find((frame) =>
         frame.url().startsWith(`chrome-extension://${id}/study.html`),
       )!;
+    await expect(frame.locator(".study-logo")).toHaveText("✦AfterClass");
     await expect(
       frame.getByRole("heading", { name: "Let’s get you caught up.", exact: true }),
     ).toBeVisible();

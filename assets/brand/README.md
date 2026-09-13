@@ -19,7 +19,7 @@ Open [the visual gallery](index.html) or download [the complete ZIP](../aftercla
 | [Lesson and citations](screenshots/lesson-citations.png) | 1280 × 720 | Original lesson capture |
 | [Whiteboard](screenshots/whiteboard-forces.png) | 1600 × 1100 | Original force-diagram capture |
 
-The SVGs and HTML layouts are editable. PNG logos preserve the rendered lettering and have transparent backgrounds. SVG wordmarks use live text: Avenir Next, with Trebuchet MS and sans-serif fallbacks. Fonts are not bundled, so use the PNGs for identical lettering on another machine. The mark is pure vector geometry and has no font dependency. These files are supplied as a brand kit; app source and extension configuration are not changed.
+The SVGs and HTML layouts are editable. PNG logos preserve the rendered lettering and have transparent backgrounds. SVG wordmarks use live text: Avenir Next, with Trebuchet MS and sans-serif fallbacks. Fonts are not bundled, so use the PNGs for identical lettering on another machine. The mark is pure vector geometry and has no font dependency. The app build copies the 32 px and 128 px marks directly into the Chrome extension for its manifest and toolbar icons. App labels and page titles use AfterClass.
 
 ## Identity
 
@@ -63,7 +63,7 @@ Captured September 12, 2026 from a fresh local build, using the repository’s e
 | Lesson and citations | `selected posts, adaptive response, exact citation and saved lesson resume` |
 | Whiteboard | `whiteboard physics rendering: car` |
 
-The “Tutor-generated” wording inside the physics screenshot is part of the existing test response; it is not evidence of a live model call. Mocked lesson state and labels are preserved as captured, including the app’s current “Afterclass” casing. New brand graphics use “AfterClass.” The mobile image demonstrates a responsive viewport, not a separate mobile application or mobile Chrome extension.
+The “Tutor-generated” wording inside the physics screenshot is part of the existing test response; it is not evidence of a live model call. Mocked lesson state and labels are preserved as captured, including the app’s “Afterclass” casing at capture time. New brand graphics use “AfterClass.” The mobile image demonstrates a responsive viewport, not a separate mobile application or mobile Chrome extension.
 
 Keep the browser-test caption when using the framed product graphics. Raw captures should be captioned “Current app interface — browser-test preview with mocked services.” Replace them with authorized live captures when claiming a live Classroom or model demonstration. Nothing has been uploaded or published.
 

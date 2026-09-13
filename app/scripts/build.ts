@@ -72,30 +72,34 @@ const ext = await Bun.build({
 });
 if (!ext.success) throw new AggregateError(ext.logs, "Extension build failed");
 const page = (title: string, script: string, css?: string) =>
-  `<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="A manageable catch-up plan, grounded in your Classroom notes. Learn one step at a time with Afterclass."><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="11" fill="#187c55"/><path d="M20 5Q22 18 35 20Q22 22 20 35Q18 22 5 20Q18 18 20 5" fill="white"/></svg>')}"><title>${title}</title>${css ? `<link rel="stylesheet" href="${css}">` : ""}</head><body><div id="root"></div><script type="module" src="${script}"></script></body></html>`;
+  `<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="A manageable catch-up plan, grounded in your Classroom notes. Learn one step at a time with AfterClass."><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="11" fill="#187c55"/><path d="M20 5Q22 18 35 20Q22 22 20 35Q18 22 5 20Q18 18 20 5" fill="white"/></svg>')}"><title>${title}</title>${css ? `<link rel="stylesheet" href="${css}">` : ""}</head><body><div id="root"></div><script type="module" src="${script}"></script></body></html>`;
 await writeFile(
   resolve(root, "dist/web/index.html"),
-  page("Afterclass · Catch Up in Classroom", "entry.js", "entry.css"),
+  page("AfterClass · Catch Up in Classroom", "entry.js", "entry.css"),
 );
 await writeFile(
   resolve(root, "dist/extension/study.html"),
-  page("Afterclass · Study with your notes", "entry.js", "entry.css"),
+  page("AfterClass · Study with your notes", "entry.js", "entry.css"),
 );
 await writeFile(
   resolve(root, "dist/extension/options.html"),
-  page("Afterclass · Settings", "options.js"),
+  page("AfterClass · Settings", "options.js"),
 );
+const icons = { 32: "mark-32.png", 128: "mark-128.png" };
+for (const file of Object.values(icons))
+  await cp(resolve(root, "../assets/brand", file), resolve(root, "dist/extension", file));
 const manifest = {
   manifest_version: 3,
   minimum_chrome_version: "120",
-  name: "Afterclass — learn inside Classroom",
+  name: "AfterClass — learn inside Classroom",
   version: "1.0.0",
   description: "An adaptive teacher beside your actual Classroom materials.",
   key,
+  icons,
   permissions: ["identity", "storage"],
   host_permissions: ["https://classroom.google.com/*", `${origin.origin}/*`],
   background: { service_worker: "background.js", type: "module" },
-  action: { default_title: "Study your Classroom notes" },
+  action: { default_title: "Study your Classroom notes", default_icon: icons },
   options_page: "options.html",
   content_scripts: [
     {
@@ -142,7 +146,7 @@ await writeFile(
   JSON.stringify(manifest, null, 2) + "\n",
 );
 console.log(
-  `Built Afterclass web UI and Chrome extension. Extension ID: ${extensionId}`,
+  `Built AfterClass web UI and Chrome extension. Extension ID: ${extensionId}`,
 );
 if (!process.env.GOOGLE_CLIENT_ID)
   console.log(

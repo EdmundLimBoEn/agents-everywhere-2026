@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Afterclass Study API",
+    "title": "AfterClass Study API",
     "version": "1.0.0",
     "description": "Local Bun API. Except status, routes require a Google OAuth access token whose audience matches GOOGLE_CLIENT_ID. Data is scoped to the verified Google user. Errors use {error,code}. JSON request limit is 300,000 bytes. Authenticated traffic is limited to 120 requests per minute per user per process. Common statuses: 400 validation, 401 Google authorization, 403 origin/account/access, 404 missing resource, 409 concurrent/stale update, 413 body limit, 415 content type, 422 no sources/lesson limit, 429 rate limit, 502 provider failure, 503 missing configuration. CORS is an exact origin allowlist. Google material access is read-only."
   },

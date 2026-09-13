@@ -117,7 +117,7 @@ export function mountDashboard(main: HTMLElement, options: {
       const link = el("a", "Open Google Classroom ↗", "study-primary catchup-link");
       link.href = "https://classroom.google.com";
       link.target = "_blank"; link.rel = "noopener noreferrer";
-      copy.append(link, el("p", "Use the Afterclass Chrome extension to connect your account. No class materials are loaded on this page yet.", "study-meta"));
+      copy.append(link, el("p", "Use the AfterClass Chrome extension to connect your account. No class materials are loaded on this page yet.", "study-meta"));
     }
     welcome.append(copy, art);
     content.append(welcome, workflow());

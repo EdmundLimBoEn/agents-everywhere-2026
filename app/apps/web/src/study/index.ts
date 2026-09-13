@@ -133,7 +133,7 @@ export function mountStudy(
   } | null = null;
   const header = el("header", "", "study-header"),
     logo = el("div", "", "study-logo");
-  logo.append(el("span", "✦", "study-mark"), el("span", "Afterclass"));
+  logo.append(el("span", "✦", "study-mark"), el("span", "AfterClass"));
   header.append(
     logo,
     el("span", "CATCH UP, WITH A LITTLE HELP.", "study-tagline"),
