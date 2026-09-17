@@ -255,8 +255,7 @@ See the [project contributors][contributors-url] for the people behind AfterClas
 
 ## License
 
-No project license is currently declared in this repository.
-
+This project follows [CC BY-NC-SA](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Contact
